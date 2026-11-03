@@ -285,3 +285,148 @@ button.primary:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--ac
 @media (prefers-reduced-motion: reduce) {
   .bubble, .bubble.merged, .bubble.final, .float-text, .confetti, .win-card { animation: none; }
 }
+
+/* ---------- Accounts, menu, challenge, admin ---------- */
+
+h2 { margin: 0 0 6px; color: var(--accent); }
+
+.view { width: 100%; max-width: 900px; }
+
+button.small { font-size: 0.9rem; padding: 6px 14px; }
+
+.user-bar {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+#view-auth { max-width: 420px; }
+
+.auth-form { display: flex; flex-direction: column; gap: 12px; }
+
+.auth-form label { display: flex; flex-direction: column; gap: 4px; font-weight: bold; color: var(--muted); }
+
+.auth-form input {
+  font-size: 1.2rem;
+  font-family: inherit;
+  padding: 10px 12px;
+  border: 3px solid #cfd8ff;
+  border-radius: 14px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.auth-form input:focus { outline: none; border-color: var(--accent); }
+
+.auth-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+#view-setup, #view-challenge { text-align: center; }
+#view-setup { max-width: 560px; }
+
+.back-btn { margin-top: 14px; }
+
+.menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.menu-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 16px;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 6px 20px rgba(43, 45, 66, 0.08);
+  transition: transform 0.15s ease;
+}
+
+.menu-tile:hover { transform: translateY(-3px); filter: none; }
+.menu-icon { font-size: 2.6rem; }
+.menu-title { font-size: 1.5rem; font-weight: bold; color: var(--accent); }
+.menu-sub { color: var(--muted); }
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 4px;
+  border-radius: 16px;
+}
+
+.level-num { font-size: 1.2rem; font-weight: bold; }
+.level-sub { font-size: 0.8rem; }
+
+.level.beaten { background: #d8f5d0; color: #22603a; }
+.level.next { background: var(--accent); color: #fff; box-shadow: 0 4px 0 var(--accent-dark); }
+.level.locked { background: #eceef5; color: #9aa0b5; cursor: not-allowed; }
+
+.status-mid { display: flex; flex-direction: column; align-items: center; }
+.timer { font-size: 1.2rem; font-weight: bold; font-variant-numeric: tabular-nums; }
+
+.win-time { color: var(--muted); margin: -10px 0 20px; }
+.win-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+.admin-head { display: flex; justify-content: space-between; align-items: center; }
+.admin .hint { text-align: left; }
+
+.table-wrap { overflow-x: auto; margin-top: 12px; }
+
+#admin-table { width: 100%; border-collapse: collapse; min-width: 560px; }
+
+#admin-table th {
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 8px;
+  border-bottom: 2px solid #e2e6f5;
+}
+
+#admin-table td { padding: 10px 8px; border-bottom: 1px solid #eef0f8; vertical-align: middle; }
+
+.player-row { cursor: pointer; }
+.player-row:hover, .player-row:focus { background: #f5f7ff; outline: none; }
+.player-row .name { font-weight: bold; }
+
+.level-bar {
+  display: inline-block;
+  width: 90px;
+  height: 10px;
+  background: #eceef5;
+  border-radius: 999px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.level-bar > div { height: 100%; background: var(--accent); border-radius: 999px; }
+.level-text { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#admin-table td:nth-child(2) { white-space: nowrap; }
+.muted { color: var(--muted); font-size: 0.85rem; }
+
+.detail-row td { background: #fafbff; }
+.detail { display: flex; flex-direction: column; gap: 10px; font-size: 0.9rem; }
+
+.chip {
+  display: inline-block;
+  background: #fff;
+  border: 1px solid #e2e6f5;
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin: 2px 0;
+}

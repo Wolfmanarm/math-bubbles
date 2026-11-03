@@ -1,21 +1,13 @@
+// Bubble board: shows B bubbles worth A each and lets the player drag them
+// together until one bubble holds A × B. Exposed as window.BubbleGame.
 (() => {
   "use strict";
 
-  const MAX_BUBBLES = 40;
-  const MAX_VALUE = 9999;
-
-  const form = document.getElementById("problem-form");
-  const inputA = document.getElementById("num-a");
-  const inputB = document.getElementById("num-b");
-  const errorEl = document.getElementById("error");
-  const setup = document.getElementById("setup");
-  const game = document.getElementById("game");
   const area = document.getElementById("play-area");
   const problemLabel = document.getElementById("problem-label");
   const progressEl = document.getElementById("progress");
+  const timerEl = document.getElementById("timer");
   const historyEl = document.getElementById("history");
-  const winEl = document.getElementById("win");
-  const winEquation = document.getElementById("win-equation");
 
   const COLORS = [
     ["#ff8fab", "#ff5d8f"],
@@ -27,53 +19,16 @@
     ["#80ffdb", "#2ec4b6"],
   ];
 
-  let state = null; // { a, b, bubbles: [{ id, value, x, y, el }], baseSize }
+  // { a, b, bubbles: [{ id, value, x, y, size, el }], baseSize, startedAt, onWin, done }
+  let state = null;
   let nextId = 1;
+  let timerHandle = null;
 
-  // ---------- Setup ----------
-
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const a = parseInt(inputA.value, 10);
-    const b = parseInt(inputB.value, 10);
-
-    if (!Number.isInteger(a) || !Number.isInteger(b)) {
-      return showError("Please type two whole numbers.");
-    }
-    if (a < 1 || a > MAX_VALUE) {
-      return showError(`The first number should be between 1 and ${MAX_VALUE}.`);
-    }
-    if (b < 1 || b > MAX_BUBBLES) {
-      return showError(`The second number should be between 1 and ${MAX_BUBBLES}.`);
-    }
-    showError("");
-    startGame(a, b);
-  });
-
-  document.getElementById("new-btn").addEventListener("click", resetToSetup);
-  document.getElementById("again-btn").addEventListener("click", resetToSetup);
-
-  function showError(msg) {
-    errorEl.textContent = msg;
-  }
-
-  function resetToSetup() {
-    winEl.classList.add("hidden");
-    game.classList.add("hidden");
-    setup.classList.remove("hidden");
+  function start(a, b, { label, onWin } = {}) {
+    stop();
     area.innerHTML = "";
     historyEl.innerHTML = "";
-    state = null;
-    inputA.focus();
-  }
-
-  function startGame(a, b) {
-    setup.classList.add("hidden");
-    game.classList.remove("hidden");
-    area.innerHTML = "";
-    historyEl.innerHTML = "";
-
-    problemLabel.textContent = `${a} × ${b} = ?`;
+    problemLabel.textContent = `${label ? label + ": " : ""}${a} × ${b} = ?`;
 
     const rect = area.getBoundingClientRect();
     const baseSize = Math.max(
@@ -81,7 +36,7 @@
       Math.min(96, Math.sqrt((rect.width * rect.height) / (b * 2.6)))
     );
 
-    state = { a, b, bubbles: [], baseSize };
+    state = { a, b, label, bubbles: [], baseSize, startedAt: Date.now(), onWin, done: false };
 
     // Lay bubbles out on a loose grid with some jitter so they don't overlap.
     const cols = Math.max(1, Math.ceil(Math.sqrt(b * (rect.width / rect.height))));
@@ -94,13 +49,32 @@
       const row = Math.floor(i / cols);
       const jitterX = (Math.random() - 0.5) * Math.max(0, cellW - baseSize) * 0.6;
       const jitterY = (Math.random() - 0.5) * Math.max(0, cellH - baseSize) * 0.6;
-      const x = cellW * (col + 0.5) + jitterX;
-      const y = cellH * (row + 0.5) + jitterY;
-      addBubble(a, x, y, i * 30);
+      addBubble(a, cellW * (col + 0.5) + jitterX, cellH * (row + 0.5) + jitterY, i * 30);
     }
 
+    timerHandle = setInterval(updateTimer, 250);
+    updateTimer();
     updateProgress();
     checkWin();
+  }
+
+  function stop() {
+    clearInterval(timerHandle);
+    timerHandle = null;
+    state = null;
+    area.innerHTML = "";
+  }
+
+  function formatTime(ms) {
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  function updateTimer() {
+    if (!state) return;
+    timerEl.textContent = formatTime(Date.now() - state.startedAt);
   }
 
   // ---------- Bubbles ----------
@@ -164,7 +138,7 @@
   // ---------- Dragging ----------
 
   function startDrag(e, bubble) {
-    if (!state || state.bubbles.length <= 1) return;
+    if (!state || state.done || state.bubbles.length <= 1) return;
     e.preventDefault();
 
     const el = bubble.el;
@@ -196,7 +170,7 @@
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onUp);
       el.classList.remove("dragging");
-      if (target) {
+      if (target && state) {
         target.el.classList.remove("target");
         mergeBubbles(bubble, target);
       }
@@ -213,7 +187,7 @@
     for (const other of state.bubbles) {
       if (other === dragged) continue;
       const dist = Math.hypot(other.x - dragged.x, other.y - dragged.y);
-      const reach = (other.size + dragged.size) / 2 * 0.75;
+      const reach = ((other.size + dragged.size) / 2) * 0.75;
       if (dist < reach && dist < bestDist) {
         best = other;
         bestDist = dist;
@@ -224,8 +198,7 @@
 
   function mergeBubbles(dragged, target) {
     const sum = dragged.value + target.value;
-    const x = target.x;
-    const y = target.y;
+    const { x, y } = target;
 
     state.bubbles = state.bubbles.filter((b) => b !== dragged && b !== target);
     dragged.el.remove();
@@ -266,14 +239,18 @@
   }
 
   function checkWin() {
-    if (!state || state.bubbles.length !== 1) return;
+    if (!state || state.done || state.bubbles.length !== 1) return;
+    state.done = true;
+    clearInterval(timerHandle);
+    const timeMs = Date.now() - state.startedAt;
+    updateTimer();
     const total = state.bubbles[0].value;
-    problemLabel.textContent = `${state.a} × ${state.b} = ${total}`;
-    winEquation.textContent = `${state.a} × ${state.b} = ${total}`;
+    problemLabel.textContent = `${state.label ? state.label + ": " : ""}${state.a} × ${state.b} = ${total}`;
+    const { a, b, onWin } = state;
+    const current = state;
     setTimeout(() => {
-      if (!state) return;
-      winEl.classList.remove("hidden");
-      launchConfetti();
+      if (state !== current) return; // player quit in the meantime
+      if (onWin) onWin({ a, b, total, timeMs });
     }, 700);
   }
 
@@ -298,5 +275,5 @@
     state.bubbles.forEach(styleBubble);
   });
 
-  inputA.focus();
+  window.BubbleGame = { start, stop, formatTime, launchConfetti };
 })();

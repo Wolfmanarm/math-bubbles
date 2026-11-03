@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keziah's Math Game</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Keziah's Math Game</h1>
+    <p class="tagline">Multiply by popping bubbles together!</p>
+    <div id="user-bar" class="user-bar hidden">
+      <span>Hi, <strong id="user-name"></strong>!</span>
+      <button id="logout-btn" type="button" class="small">Sign out</button>
+    </div>
+  </header>
+
+  <!-- Sign in -->
+  <section id="view-auth" class="card view hidden">
+    <form id="auth-form" class="auth-form" autocomplete="on">
+      <label>Name
+        <input id="auth-name" name="username" type="text" maxlength="20" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input id="auth-pass" name="password" type="password" maxlength="100" autocomplete="current-password" required>
+      </label>
+      <div class="auth-buttons">
+        <button type="submit" class="primary" data-action="login">Sign in</button>
+        <button type="submit" data-action="register">Create account</button>
+      </div>
+    </form>
+    <p id="auth-error" class="error" role="alert"></p>
+  </section>
+
+  <!-- Main menu -->
+  <section id="view-menu" class="view hidden">
+    <div class="menu">
+      <button id="menu-free" type="button" class="menu-tile">
+        <span class="menu-icon">🫧</span>
+        <span class="menu-title">Free play</span>
+        <span class="menu-sub">Pick any multiplication</span>
+      </button>
+      <button id="menu-challenge" type="button" class="menu-tile">
+        <span class="menu-icon">🏆</span>
+        <span class="menu-title">Challenge</span>
+        <span id="menu-challenge-sub" class="menu-sub">1×1 all the way to 30×30</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Free play setup -->
+  <section id="view-setup" class="card view hidden">
+    <form id="problem-form" autocomplete="off">
+      <input id="num-a" type="number" min="1" max="9999" inputmode="numeric" placeholder="14" required aria-label="Number in each bubble">
+      <span class="op">×</span>
+      <input id="num-b" type="number" min="1" max="40" inputmode="numeric" placeholder="12" required aria-label="How many bubbles">
+      <button type="submit" class="primary">Make bubbles!</button>
+    </form>
+    <p class="hint">The first number goes in every bubble. The second number is how many bubbles you get (up to 40).</p>
+    <p id="error" class="error" role="alert"></p>
+    <button type="button" class="back-btn small" data-back>← Back</button>
+  </section>
+
+  <!-- Challenge levels -->
+  <section id="view-challenge" class="card view hidden">
+    <h2>Challenge</h2>
+    <p class="hint">Beat each level to unlock the next one. Your best time is shown under each level.</p>
+    <div id="level-grid" class="level-grid"></div>
+    <button type="button" class="back-btn small" data-back>← Back</button>
+  </section>
+
+  <!-- Game -->
+  <section id="view-game" class="view hidden">
+    <div class="status card">
+      <div id="problem-label" class="problem-label"></div>
+      <div class="status-mid">
+        <div id="progress" class="progress"></div>
+        <div id="timer" class="timer">0:00</div>
+      </div>
+      <button id="quit-btn" type="button">Quit</button>
+    </div>
+    <p class="hint drag-hint">Drag one bubble onto another to add them together.</p>
+    <div id="play-area"></div>
+    <ul id="history" aria-label="Your additions"></ul>
+  </section>
+
+  <!-- Admin -->
+  <section id="view-admin" class="card view admin hidden">
+    <div class="admin-head">
+      <h2>Scores</h2>
+      <button id="admin-refresh" type="button" class="small">Refresh</button>
+    </div>
+    <p id="admin-summary" class="hint"></p>
+    <div class="table-wrap">
+      <table id="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Challenge level</th>
+            <th>Challenge total time</th>
+            <th>Games played</th>
+            <th>Last played</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="admin-empty" class="hint hidden">Nobody has made an account yet.</p>
+  </section>
+
+  <!-- Win popup -->
+  <div id="win" class="hidden" role="dialog" aria-live="polite">
+    <div class="win-card">
+      <div id="win-title" class="win-title">You did it! 🎉</div>
+      <div id="win-equation" class="win-equation"></div>
+      <div id="win-time" class="win-time"></div>
+      <div class="win-buttons">
+        <button id="next-btn" type="button" class="primary hidden">Next level →</button>
+        <button id="again-btn" type="button" class="primary">Play again</button>
+        <button id="menu-btn" type="button">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
