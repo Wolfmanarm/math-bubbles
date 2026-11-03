@@ -1,13 +1,22 @@
 // Bubble board: shows B bubbles worth A each and lets the player drag them
 // together until one bubble holds A × B. Exposed as window.BubbleGame.
+//
+// With more than SECTION_SIZE bubbles, the bubbles start in sections of 10.
+// Bubbles can only be merged inside their own section. Once every section is
+// down to one big bubble, the sections open up and the big bubbles are merged.
 (() => {
   "use strict";
+
+  const SECTION_SIZE = 10;
+  const SECTION_GAP = 6; // space around each section box, in px
+  const SECTION_LABEL = 28; // height of the label strip at the top of a section
 
   const area = document.getElementById("play-area");
   const problemLabel = document.getElementById("problem-label");
   const progressEl = document.getElementById("progress");
   const timerEl = document.getElementById("timer");
   const historyEl = document.getElementById("history");
+  const hintEl = document.getElementById("drag-hint");
 
   const COLORS = [
     ["#ff8fab", "#ff5d8f"],
@@ -19,42 +28,64 @@
     ["#80ffdb", "#2ec4b6"],
   ];
 
-  // { a, b, bubbles: [{ id, value, x, y, size, el }], baseSize, startedAt, onWin, done }
+  // state: {
+  //   a, b, label, baseSize, startedAt, onWin, done,
+  //   bubbles: [{ id, value, x, y, size, el, section }],  // section: index or null
+  //   sections: [{ index, count, rect, el, labelEl, done }], // empty when b <= 10
+  // }
   let state = null;
   let nextId = 1;
   let timerHandle = null;
 
   function start(a, b, { label, onWin } = {}) {
     stop();
-    area.innerHTML = "";
     historyEl.innerHTML = "";
     problemLabel.textContent = `${label ? label + ": " : ""}${a} × ${b} = ?`;
 
-    const rect = area.getBoundingClientRect();
-    const baseSize = Math.max(
-      44,
-      Math.min(96, Math.sqrt((rect.width * rect.height) / (b * 2.6)))
-    );
+    state = {
+      a, b, label, onWin,
+      bubbles: [],
+      sections: [],
+      startedAt: Date.now(),
+      done: false,
+    };
 
-    state = { a, b, label, bubbles: [], baseSize, startedAt: Date.now(), onWin, done: false };
+    // Fill in the text above the board first: it can wrap on small screens,
+    // which moves the board down and changes how much room it has.
+    const boxCount = b > SECTION_SIZE ? Math.ceil(b / SECTION_SIZE) : 0;
+    hintEl.textContent = boxCount
+      ? "Add up the bubbles inside each box first. When every box has one big bubble, add the big bubbles together!"
+      : "Drag one bubble onto another to add them together.";
+    progressEl.textContent = boxCount ? `${boxCount} boxes left to finish` : `${b} bubbles left`;
+    timerEl.textContent = formatTime(0);
+    fitArea();
 
-    // Lay bubbles out on a loose grid with some jitter so they don't overlap.
-    const cols = Math.max(1, Math.ceil(Math.sqrt(b * (rect.width / rect.height))));
-    const rows = Math.ceil(b / cols);
-    const cellW = rect.width / cols;
-    const cellH = rect.height / rows;
-
-    for (let i = 0; i < b; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const jitterX = (Math.random() - 0.5) * Math.max(0, cellW - baseSize) * 0.6;
-      const jitterY = (Math.random() - 0.5) * Math.max(0, cellH - baseSize) * 0.6;
-      addBubble(a, cellW * (col + 0.5) + jitterX, cellH * (row + 0.5) + jitterY, i * 30);
+    const areaRect = area.getBoundingClientRect();
+    if (boxCount) {
+      const count = boxCount;
+      const rects = sectionRects(count, areaRect.width, areaRect.height);
+      for (let i = 0; i < count; i++) {
+        const n = Math.min(SECTION_SIZE, b - i * SECTION_SIZE);
+        state.sections.push(makeSection(i, n, rects[i]));
+      }
+      // One bubble size for every section, small enough for the tightest one.
+      state.baseSize = Math.min(
+        ...state.sections.map((s) => baseSizeFor(innerRect(s.rect), s.count))
+      );
+      state.sections.forEach((s) => {
+        placeBubbles(innerRect(s.rect), s.count, s.index);
+        updateSection(s);
+      });
+    } else {
+      const full = { x: 0, y: 0, w: areaRect.width, h: areaRect.height };
+      state.baseSize = baseSizeFor(full, b);
+      placeBubbles(full, b, null);
     }
 
     timerHandle = setInterval(updateTimer, 250);
     updateTimer();
     updateProgress();
+    checkSectionsDone();
     checkWin();
   }
 
@@ -77,13 +108,136 @@
     timerEl.textContent = formatTime(Date.now() - state.startedAt);
   }
 
+  // Size the play area so all of it fits on screen at once. Touches inside it
+  // move bubbles instead of scrolling the page, so nothing may hide below.
+  function fitArea() {
+    const top = area.getBoundingClientRect().top + window.scrollY;
+    const available = window.innerHeight - top - 12;
+    area.style.height = `${Math.round(Math.max(300, Math.min(620, available)))}px`;
+    area.style.minHeight = "0";
+  }
+
+  // ---------- Sections ----------
+
+  // Split the play area into a grid of `count` boxes, choosing the number of
+  // columns that keeps the boxes as square (and therefore as roomy) as possible.
+  function sectionRects(count, width, height) {
+    let best = null;
+    for (let cols = 1; cols <= count; cols++) {
+      const rows = Math.ceil(count / cols);
+      const w = width / cols;
+      const h = height / rows;
+      const score = Math.min(w, h);
+      if (!best || score > best.score) best = { cols, w, h, score };
+    }
+    return Array.from({ length: count }, (_, i) => ({
+      x: (i % best.cols) * best.w + SECTION_GAP,
+      y: Math.floor(i / best.cols) * best.h + SECTION_GAP,
+      w: best.w - SECTION_GAP * 2,
+      h: best.h - SECTION_GAP * 2,
+    }));
+  }
+
+  // The part of a section box that bubbles can move in (below the label).
+  function innerRect(rect) {
+    return { x: rect.x, y: rect.y + SECTION_LABEL, w: rect.w, h: Math.max(10, rect.h - SECTION_LABEL) };
+  }
+
+  function makeSection(index, count, rect) {
+    const el = document.createElement("div");
+    el.className = "section";
+    const labelEl = document.createElement("div");
+    labelEl.className = "section-label";
+    el.appendChild(labelEl);
+    area.appendChild(el);
+    const section = { index, count, rect, el, labelEl, done: false };
+    positionSection(section);
+    return section;
+  }
+
+  function positionSection(section) {
+    const s = section.el.style;
+    s.left = `${section.rect.x}px`;
+    s.top = `${section.rect.y}px`;
+    s.width = `${section.rect.w}px`;
+    s.height = `${section.rect.h}px`;
+  }
+
+  function updateSection(section) {
+    const inside = state.bubbles.filter((b) => b.section === section.index);
+    section.done = inside.length === 1;
+    section.el.classList.toggle("done", section.done);
+    section.labelEl.textContent = section.done
+      ? `✓ ${section.count} × ${state.a} = ${inside[0].value}`
+      : `Box ${section.index + 1}: ${inside.length} bubbles`;
+  }
+
+  function checkSectionsDone() {
+    if (!state.sections.length || !state.sections.every((s) => s.done)) return;
+
+    // Every box is down to one big bubble: open the boxes up.
+    const sections = state.sections;
+    state.sections = [];
+    state.bubbles.forEach((b) => (b.section = null));
+    sections.forEach((s) => {
+      s.el.classList.add("opening");
+      setTimeout(() => s.el.remove(), 600);
+    });
+    state.bubbles.forEach(styleBubble);
+    hintEl.textContent = "Every box is done! Now add the big bubbles together.";
+
+    if (state.bubbles.length > 1) {
+      const rect = area.getBoundingClientRect();
+      showFloatText("Now add the big bubbles!", rect.width / 2, rect.height / 2, "big");
+    }
+    updateProgress();
+  }
+
   // ---------- Bubbles ----------
 
-  function sizeFor(value) {
+  function baseSizeFor(rect, count) {
+    return Math.max(40, Math.min(96, Math.sqrt((rect.w * rect.h) / (count * 2.6))));
+  }
+
+  // Where a bubble is allowed to be: its section, or the whole play area.
+  function boundsFor(bubble) {
+    if (bubble.section !== null) {
+      const section = state.sections.find((s) => s.index === bubble.section);
+      if (section) return innerRect(section.rect);
+    }
     const rect = area.getBoundingClientRect();
-    const maxSize = Math.min(rect.width, rect.height) * 0.42;
-    const scaled = state.baseSize * Math.sqrt(value / state.a);
-    return Math.min(maxSize, Math.max(state.baseSize, scaled));
+    return { x: 0, y: 0, w: rect.width, h: rect.height };
+  }
+
+  function placeBubbles(rect, count, section) {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(count * (rect.w / rect.h))));
+    const rows = Math.ceil(count / cols);
+    const cellW = rect.w / cols;
+    const cellH = rect.h / rows;
+    const delayStart = state.bubbles.length;
+
+    for (let i = 0; i < count; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const jitterX = (Math.random() - 0.5) * Math.max(0, cellW - state.baseSize) * 0.6;
+      const jitterY = (Math.random() - 0.5) * Math.max(0, cellH - state.baseSize) * 0.6;
+      addBubble(
+        state.a,
+        rect.x + cellW * (col + 0.5) + jitterX,
+        rect.y + cellH * (row + 0.5) + jitterY,
+        section,
+        (delayStart + i) * 30
+      );
+    }
+  }
+
+  function sizeFor(bubble) {
+    const bounds = boundsFor(bubble);
+    const maxSize = bubble.section !== null
+      ? Math.min(bounds.w, bounds.h) * 0.9
+      : Math.min(bounds.w, bounds.h) * 0.42;
+    const scaled = state.baseSize * Math.sqrt(bubble.value / state.a);
+    return Math.max(Math.min(state.baseSize, maxSize), Math.min(maxSize, scaled));
   }
 
   function colorFor(value) {
@@ -91,7 +245,7 @@
     return COLORS[idx];
   }
 
-  function addBubble(value, x, y, delay = 0, extraClass = "") {
+  function addBubble(value, x, y, section, delay = 0, extraClass = "") {
     const el = document.createElement("div");
     el.className = "bubble" + (extraClass ? " " + extraClass : "");
     el.setAttribute("role", "button");
@@ -99,17 +253,17 @@
     el.textContent = value;
     if (delay) el.style.animationDelay = `${delay}ms`;
 
-    const bubble = { id: nextId++, value, x, y, el };
+    const bubble = { id: nextId++, value, x, y, section, el };
+    state.bubbles.push(bubble);
     styleBubble(bubble);
     area.appendChild(el);
-    state.bubbles.push(bubble);
 
     el.addEventListener("pointerdown", (e) => startDrag(e, bubble));
     return bubble;
   }
 
   function styleBubble(bubble) {
-    const size = sizeFor(bubble.value);
+    const size = sizeFor(bubble);
     bubble.size = size;
     clampBubble(bubble);
     const [light, dark] = colorFor(bubble.value);
@@ -119,14 +273,14 @@
     s.top = `${bubble.y - size / 2}px`;
     s.background = `radial-gradient(circle at 35% 30%, ${light}, ${dark})`;
     const digits = String(bubble.value).length;
-    s.fontSize = `${Math.max(14, Math.min(size * 0.42, (size * 0.9) / (digits * 0.62)))}px`;
+    s.fontSize = `${Math.max(13, Math.min(size * 0.42, (size * 0.9) / (digits * 0.62)))}px`;
   }
 
   function clampBubble(bubble) {
-    const rect = area.getBoundingClientRect();
+    const b = boundsFor(bubble);
     const r = bubble.size / 2;
-    bubble.x = Math.min(Math.max(r, bubble.x), Math.max(r, rect.width - r));
-    bubble.y = Math.min(Math.max(r, bubble.y), Math.max(r, rect.height - r));
+    bubble.x = Math.min(Math.max(b.x + r, bubble.x), Math.max(b.x + r, b.x + b.w - r));
+    bubble.y = Math.min(Math.max(b.y + r, bubble.y), Math.max(b.y + r, b.y + b.h - r));
   }
 
   function moveBubble(bubble) {
@@ -152,6 +306,7 @@
     let target = null;
 
     const onMove = (ev) => {
+      if (!state) return;
       const r = area.getBoundingClientRect();
       bubble.x = ev.clientX - r.left - offsetX;
       bubble.y = ev.clientY - r.top - offsetY;
@@ -185,7 +340,7 @@
     let best = null;
     let bestDist = Infinity;
     for (const other of state.bubbles) {
-      if (other === dragged) continue;
+      if (other === dragged || other.section !== dragged.section) continue;
       const dist = Math.hypot(other.x - dragged.x, other.y - dragged.y);
       const reach = ((other.size + dragged.size) / 2) * 0.75;
       if (dist < reach && dist < bestDist) {
@@ -198,14 +353,14 @@
 
   function mergeBubbles(dragged, target) {
     const sum = dragged.value + target.value;
-    const { x, y } = target;
+    const { x, y, section } = target;
 
     state.bubbles = state.bubbles.filter((b) => b !== dragged && b !== target);
     dragged.el.remove();
     target.el.remove();
 
     const isFinal = state.bubbles.length === 0;
-    const merged = addBubble(sum, x, y, 0, isFinal ? "merged final" : "merged");
+    const merged = addBubble(sum, x, y, section, 0, isFinal ? "merged final" : "merged");
     if (isFinal) merged.el.setAttribute("aria-label", `Final answer ${sum}`);
 
     const equation = `${dragged.value} + ${target.value} = ${sum}`;
@@ -215,31 +370,41 @@
     li.textContent = equation;
     historyEl.appendChild(li);
 
+    if (section !== null) {
+      const s = state.sections.find((sec) => sec.index === section);
+      if (s) updateSection(s);
+      checkSectionsDone();
+    }
     updateProgress();
     checkWin();
   }
 
-  function showFloatText(text, x, y) {
+  function showFloatText(text, x, y, extraClass = "") {
     const el = document.createElement("div");
-    el.className = "float-text";
+    el.className = "float-text" + (extraClass ? " " + extraClass : "");
     el.textContent = text;
     el.style.left = `${x}px`;
     el.style.top = `${Math.max(20, y)}px`;
     area.appendChild(el);
     el.addEventListener("animationend", () => el.remove());
-    setTimeout(() => el.remove(), 2000);
+    setTimeout(() => el.remove(), 2500);
   }
 
   // ---------- Progress & win ----------
 
   function updateProgress() {
     const n = state.bubbles.length;
-    progressEl.textContent =
-      n === 1 ? "One bubble left — that's your answer!" : `${n} bubbles left`;
+    if (state.sections.length) {
+      const left = state.sections.filter((s) => !s.done).length;
+      progressEl.textContent = `${left} box${left === 1 ? "" : "es"} left to finish`;
+    } else {
+      progressEl.textContent =
+        n === 1 ? "One bubble left — that's your answer!" : `${n} bubbles left`;
+    }
   }
 
   function checkWin() {
-    if (!state || state.done || state.bubbles.length !== 1) return;
+    if (!state || state.done || state.sections.length || state.bubbles.length !== 1) return;
     state.done = true;
     clearInterval(timerHandle);
     const timeMs = Date.now() - state.startedAt;
@@ -269,9 +434,18 @@
     }
   }
 
-  // Keep bubbles inside the play area when the window is resized.
+  // Keep sections and bubbles inside the play area when the window is resized.
   window.addEventListener("resize", () => {
     if (!state) return;
+    fitArea();
+    if (state.sections.length) {
+      const rect = area.getBoundingClientRect();
+      const rects = sectionRects(state.sections.length, rect.width, rect.height);
+      state.sections.forEach((s, i) => {
+        s.rect = rects[i];
+        positionSection(s);
+      });
+    }
     state.bubbles.forEach(styleBubble);
   });
 
