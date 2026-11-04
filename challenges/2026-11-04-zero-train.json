@@ -1,0 +1,28 @@
+{
+  "id": "zero-train",
+  "date": "2026-11-04",
+  "title": "The Zero Train: × 10, 100, 1,000 … 1,000,000",
+  "emoji": "🚂",
+  "description": "All aboard! Find out why multiplying by 10, 100, 1,000 and more just adds zeros to the end of a number.",
+  "intro": [
+    "Your number is a train, with one car for each digit. 48 is an engine pulling a 4 car and an 8 car.",
+    "Numbers like 1,000 are trains too: a 1 car pulling three 0 cars. To work out 48 × 1,000, unhook the three 0 cars and couple them onto the back of the 48 train. Now it says 48,000!",
+    "The 1 car gets left behind, and that's fine: multiplying by 1 doesn't change anything.",
+    "Once you've got the trick, the helper train goes away. Count the zeros, take that many 0 cars from the depot, and press Go!"
+  ],
+  "levels": [
+    {"type": "train", "helper": true, "a": 4, "b": 10},
+    {"type": "train", "helper": true, "a": 23, "b": 10},
+    {"type": "train", "helper": true, "a": 6, "b": 100},
+    {"type": "train", "helper": true, "a": 52, "b": 1000},
+    {"type": "train", "helper": true, "a": 9, "b": 1000000},
+    {"type": "train", "a": 7, "b": 10},
+    {"type": "train", "a": 31, "b": 100},
+    {"type": "train", "a": 8, "b": 1000},
+    {"type": "train", "a": 64, "b": 1000},
+    {"type": "train", "a": 5, "b": 10000},
+    {"type": "train", "a": 27, "b": 100000},
+    {"type": "train", "a": 3, "b": 1000000},
+    {"type": "train", "a": 125, "b": 1000000}
+  ]
+}

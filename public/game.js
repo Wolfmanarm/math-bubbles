@@ -436,7 +436,7 @@
 
   // Keep sections and bubbles inside the play area when the window is resized.
   window.addEventListener("resize", () => {
-    if (!state || state.kind === "zeros") return;
+    if (!state || state.kind === "train") return;
     fitArea();
     if (state.sections.length) {
       const rect = area.getBoundingClientRect();
@@ -449,69 +449,79 @@
     state.bubbles.forEach(styleBubble);
   });
 
-  // ---------- Zeros levels (×10, ×100 … ×1,000,000) ----------
+  // ---------- Train levels (×10, ×100 … ×1,000,000) ----------
   //
-  // The player sees, e.g., 48 × 1,000 and a pool of 0 bubbles. They drag (or
-  // tap) zeros onto the end of 48, then press Check. The right answer is the
-  // number with as many zeros on the end as the multiplier has.
+  // The player's number is a train: an engine pulling one car per digit.
+  // To multiply by 10, 100, 1,000 … they couple 0 cars onto the back of it.
+  //
+  // Helper levels also show the multiplier as a train (1,000 = a "1" car and
+  // three "0" cars). The player moves its 0 cars onto their own train; the
+  // lonely "1" left behind shows that × 1 changes nothing.
+  //
+  // Practice levels only show the multiplier as a number. The player takes
+  // 0 cars from the depot, couples on the right amount and presses Go.
 
-  const ZERO_POOL = 7;
+  const DEPOT_SIZE = 7;
 
-  function startZeros(a, b, { label, onWin } = {}) {
+  function startTrain(a, b, { label, onWin, helper = false } = {}) {
     stop();
     historyEl.innerHTML = "";
     const needed = String(b).length - 1;
     problemLabel.textContent = `${label ? label + ": " : ""}${a} × ${formatNumber(b)} = ?`;
-    hintEl.textContent = `Drag 0 bubbles onto the end of ${a} (or tap them), then press Check!`;
-    progressEl.textContent = "Add the zeros";
+    hintEl.textContent = helper
+      ? `Move the 0 cars from the ${formatNumber(b)} train onto the back of your ${a} train. Drag them, or tap them.`
+      : `Couple the right number of 0 cars onto your ${a} train, then press Go! Drag them, or tap them.`;
+    progressEl.textContent = "0 cars coupled: 0";
     timerEl.textContent = formatTime(0);
     fitArea();
 
-    state = { kind: "zeros", a, b, label, needed, onWin, startedAt: Date.now(), done: false, tries: 0 };
+    state = { kind: "train", a, b, label, needed, helper, onWin, startedAt: Date.now(), done: false, tries: 0 };
 
-    const board = el("div", "zeros-board");
+    const board = el("div", "train-board");
 
-    const problem = el("div", "zeros-problem");
-    problem.append(el("span", "zp-a", String(a)), el("span", "zp-op", "×"));
-    const multiplier = el("span", "zp-b");
-    formatNumber(b).split("").forEach((ch, i) => {
-      multiplier.appendChild(el("span", ch === "0" ? "zp-zero" : ch === "," ? "zp-comma" : "zp-digit", ch));
+    // The sum written out, with the zeros of the multiplier picked out.
+    const problem = el("div", "train-problem");
+    problem.append(el("span", "tp-a", String(a)), el("span", "tp-op", "×"));
+    const multiplier = el("span", "tp-b");
+    formatNumber(b).split("").forEach((ch) => {
+      multiplier.appendChild(el("span", ch === "0" ? "tp-zero" : ch === "," ? "tp-comma" : "tp-digit", ch));
     });
     problem.appendChild(multiplier);
 
-    const answer = el("div", "zeros-answer");
-    answer.setAttribute("aria-label", "Your answer");
-    String(a).split("").forEach((d) => answer.appendChild(el("span", "digit-tile", d)));
-    const slot = el("span", "drop-slot", "+0");
-    slot.setAttribute("aria-hidden", "true");
-    answer.appendChild(slot);
+    // Your number's train.
+    const mainTrack = el("div", "track main-track");
+    mainTrack.appendChild(el("div", "track-label", `Your number: ${a}`));
+    const mainTrain = el("div", "train");
+    mainTrain.appendChild(makeEngine());
+    String(a).split("").forEach((d) => mainTrain.appendChild(el("span", "car digit-car", d)));
+    const hitch = el("span", "car hitch", "+0");
+    hitch.setAttribute("aria-hidden", "true");
+    mainTrain.appendChild(hitch);
+    mainTrack.appendChild(mainTrain);
 
-    const pool = el("div", "zeros-pool");
-    for (let i = 0; i < ZERO_POOL; i++) {
-      const z = el("button", "zero-bubble", "0");
-      z.type = "button";
-      z.setAttribute("aria-label", "Zero bubble: add to the end of the number");
-      z.addEventListener("pointerdown", (e) => dragZero(e, z));
-      z.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggleZero(z);
-        }
-      });
-      pool.appendChild(z);
+    // Where the 0 cars start: the multiplier's own train, or the depot.
+    const source = el("div", helper ? "track helper-track" : "depot");
+    source.appendChild(el("div", "track-label", helper ? `The ${formatNumber(b)} train` : "Depot: spare 0 cars"));
+    const sourceTrain = el("div", helper ? "train" : "depot-cars");
+    if (helper) {
+      sourceTrain.appendChild(makeEngine());
+      sourceTrain.appendChild(el("span", "car one-car", "1"));
     }
+    for (let i = 0; i < (helper ? needed : DEPOT_SIZE); i++) sourceTrain.appendChild(makeZeroCar());
+    source.appendChild(sourceTrain);
 
-    const check = el("button", "primary zeros-check", "Check");
-    check.type = "button";
-    check.addEventListener("click", checkZeros);
+    const go = el("button", "primary train-go", "🚦 Go!");
+    go.type = "button";
+    go.addEventListener("click", checkTrain);
+    go.classList.toggle("hidden", helper);
 
-    const msg = el("p", "zeros-msg");
+    const msg = el("p", "train-msg");
     msg.setAttribute("role", "status");
 
-    board.append(problem, answer, pool, check, msg);
+    board.append(problem, mainTrack, source, go, msg);
     area.appendChild(board);
-    Object.assign(state, { board, problem, answer, slot, pool, msg });
-    sizeTiles();
+    Object.assign(state, { board, problem, mainTrack, mainTrain, hitch, sourceTrain, msg, go });
+    sizeCars();
 
     timerHandle = setInterval(updateTimer, 250);
   }
@@ -527,40 +537,79 @@
     return n.toLocaleString("en-US");
   }
 
-  function attachedZeros() {
-    return state.answer.querySelectorAll(".zero-bubble").length;
+  function makeEngine() {
+    const engine = el("span", "engine", "🚂");
+    engine.setAttribute("aria-hidden", "true");
+    return engine;
   }
 
-  // Shrink the digit tiles when the answer gets long so it stays on one line.
-  function sizeTiles() {
-    const count = String(state.a).length + attachedZeros() + 1;
-    const width = state.answer.clientWidth || area.clientWidth;
-    const gap = 4;
-    const size = Math.max(24, Math.min(56, (width - 22 - gap * (count - 1)) / count));
-    state.answer.style.setProperty("--tile", `${size}px`);
+  function makeZeroCar() {
+    const car = el("button", "car zero-car", "0");
+    car.type = "button";
+    car.setAttribute("aria-label", "0 car: couple it onto your train");
+    car.addEventListener("pointerdown", (e) => dragCar(e, car));
+    car.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        moveCar(car);
+      }
+    });
+    return car;
   }
 
-  function toggleZero(z) {
-    if (!state || state.kind !== "zeros" || state.done) return;
-    if (z.parentElement === state.answer) {
-      state.pool.appendChild(z);
-      z.setAttribute("aria-label", "Zero bubble: add to the end of the number");
-    } else {
-      state.answer.insertBefore(z, state.slot);
-      z.setAttribute("aria-label", "Zero on the end: tap to take it off");
+  function coupledZeros() {
+    return state.mainTrain.querySelectorAll(".zero-car").length;
+  }
+
+  // Size the cars so the longest train fits on one line. On helper levels
+  // both trains are as long as they'll ever get from the start, so the
+  // cars keep one size; on practice levels they shrink if extra 0 cars
+  // get coupled on.
+  function sizeCars() {
+    const engine = 1.1;
+    const zeros = state.helper ? state.needed : Math.max(state.needed, coupledZeros());
+    const mainUnits = engine + String(state.a).length + zeros + 1; // + the dashed hitch
+    const helperUnits = state.helper ? engine + 1 + state.needed : 0;
+    const units = Math.max(mainUnits, helperUnits);
+    const width = (state.mainTrack.clientWidth || area.clientWidth) - 24;
+    let gap = 6;
+    let size = (width - gap * units) / units;
+    if (size < 34) {
+      gap = 3;
+      size = (width - gap * units) / units;
     }
-    z.classList.remove("wrong");
-    state.answer.classList.remove("shake");
-    state.msg.textContent = "";
-    state.msg.className = "zeros-msg";
-    progressEl.textContent = `${attachedZeros()} zero${attachedZeros() === 1 ? "" : "s"} on the end`;
-    sizeTiles();
+    size = Math.max(20, Math.min(54, size));
+    state.board.style.setProperty("--car", `${size}px`);
+    state.board.style.setProperty("--gap", `${gap}px`);
   }
 
-  function dragZero(e, z) {
-    if (!state || state.kind !== "zeros" || state.done) return;
+  // Couple a 0 car onto the main train, or send it back where it came from.
+  function moveCar(car) {
+    if (!state || state.kind !== "train" || state.done) return;
+    if (car.parentElement === state.mainTrain) {
+      state.sourceTrain.appendChild(car);
+      car.setAttribute("aria-label", "0 car: couple it onto your train");
+    } else {
+      state.mainTrain.insertBefore(car, state.hitch);
+      car.setAttribute("aria-label", "0 car on your train: tap to uncouple it");
+    }
+    state.mainTrain.classList.remove("shake");
+    state.msg.textContent = "";
+    state.msg.className = "train-msg";
+    const n = coupledZeros();
+    progressEl.textContent = `0 cars coupled: ${n}`;
+    state.mainTrack.querySelector(".track-label").textContent =
+      `Your number: ${formatNumber(Number(String(state.a) + "0".repeat(n)))}`;
+    sizeCars();
+
+    // Helper levels finish by themselves once the multiplier train only has its 1 left.
+    if (state.helper && !state.sourceTrain.querySelector(".zero-car")) succeed();
+  }
+
+  function dragCar(e, car) {
+    if (!state || state.kind !== "train" || state.done) return;
     e.preventDefault();
-    z.setPointerCapture(e.pointerId);
+    car.setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const startY = e.clientY;
     let moved = false;
@@ -570,78 +619,89 @@
       const dy = ev.clientY - startY;
       if (!moved && Math.hypot(dx, dy) > 8) {
         moved = true;
-        z.classList.add("dragging");
+        car.classList.add("dragging");
       }
-      if (moved) z.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
-      if (moved) state.answer.classList.toggle("over", overAnswer(ev));
+      if (moved) {
+        car.style.transform = `translate(${dx}px, ${dy}px) rotate(-4deg)`;
+        state.mainTrack.classList.toggle("over", overMainTrack(ev));
+      }
     };
 
     const onUp = (ev) => {
-      z.removeEventListener("pointermove", onMove);
-      z.removeEventListener("pointerup", onUp);
-      z.removeEventListener("pointercancel", onUp);
-      z.classList.remove("dragging");
-      z.style.transform = "";
-      if (!state || state.kind !== "zeros") return;
-      state.answer.classList.remove("over");
-      const inAnswer = z.parentElement === state.answer;
-      if (!moved) {
-        toggleZero(z); // a tap adds or removes the zero
-      } else if (!inAnswer && overAnswer(ev)) {
-        toggleZero(z); // dropped onto the number
-      } else if (inAnswer && !overAnswer(ev)) {
-        toggleZero(z); // dragged off the number
-      }
+      car.removeEventListener("pointermove", onMove);
+      car.removeEventListener("pointerup", onUp);
+      car.removeEventListener("pointercancel", onUp);
+      car.classList.remove("dragging");
+      car.style.transform = "";
+      if (!state || state.kind !== "train") return;
+      state.mainTrack.classList.remove("over");
+      const onMain = car.parentElement === state.mainTrain;
+      if (!moved) moveCar(car); // a tap couples or uncouples
+      else if (!onMain && overMainTrack(ev)) moveCar(car); // dropped onto your train
+      else if (onMain && !overMainTrack(ev)) moveCar(car); // dragged off your train
     };
 
-    z.addEventListener("pointermove", onMove);
-    z.addEventListener("pointerup", onUp);
-    z.addEventListener("pointercancel", onUp);
+    car.addEventListener("pointermove", onMove);
+    car.addEventListener("pointerup", onUp);
+    car.addEventListener("pointercancel", onUp);
   }
 
-  function overAnswer(ev) {
-    const r = state.answer.getBoundingClientRect();
-    const pad = 30;
-    return ev.clientX > r.left - pad && ev.clientX < r.right + pad && ev.clientY > r.top - pad && ev.clientY < r.bottom + pad;
+  function overMainTrack(ev) {
+    const r = state.mainTrack.getBoundingClientRect();
+    return ev.clientX > r.left - 20 && ev.clientX < r.right + 20 && ev.clientY > r.top - 20 && ev.clientY < r.bottom + 20;
   }
 
-  function checkZeros() {
-    if (!state || state.kind !== "zeros" || state.done) return;
-    const have = attachedZeros();
-    const { a, b, needed } = state;
-    if (have === needed) {
-      state.done = true;
-      clearInterval(timerHandle);
-      const timeMs = Date.now() - state.startedAt;
-      updateTimer();
-      const total = a * b;
-      state.answer.classList.add("correct");
-      state.problem.classList.add("solved");
-      state.msg.className = "zeros-msg good";
-      state.msg.textContent = `${a} × ${formatNumber(b)} = ${formatNumber(total)}`;
-      problemLabel.textContent = `${state.label ? state.label + ": " : ""}${a} × ${formatNumber(b)} = ${formatNumber(total)}`;
-      progressEl.textContent = "Correct!";
-      const current = state;
-      setTimeout(() => {
-        if (state === current && current.onWin) current.onWin({ a, b, total, timeMs });
-      }, 1100);
-      return;
-    }
+  function checkTrain() {
+    if (!state || state.kind !== "train" || state.done) return;
+    const have = coupledZeros();
+    const { b, needed } = state;
+    if (have === needed) return succeed();
 
     state.tries += 1;
-    state.answer.classList.remove("shake");
-    void state.answer.offsetWidth; // restart the shake animation
-    state.answer.classList.add("shake");
-    state.msg.className = "zeros-msg bad";
-    const word = have < needed ? "Not enough zeros" : "Too many zeros";
+    state.mainTrain.classList.remove("shake");
+    void state.mainTrain.offsetWidth; // restart the shake animation
+    state.mainTrain.classList.add("shake");
+    state.msg.className = "train-msg bad";
+    const word = have < needed ? "Not enough 0 cars" : "Too many 0 cars";
     if (state.tries >= 2) {
-      // Second miss: point at the zeros in the multiplier.
       state.problem.classList.add("show-zeros");
-      state.msg.textContent = `${word}! Look: ${formatNumber(b)} has ${needed} zero${needed === 1 ? "" : "s"}.`;
+      state.msg.textContent = `🚧 ${word}! Look: ${formatNumber(b)} has ${needed} zero${needed === 1 ? "" : "s"}.`;
     } else {
-      state.msg.textContent = `${word}! Count the zeros in ${formatNumber(b)} and try again.`;
+      state.msg.textContent = `🚧 ${word}! Count the zeros in ${formatNumber(b)} and try again.`;
     }
   }
 
-  window.BubbleGame = { start, startZeros, stop, formatTime, formatNumber, launchConfetti };
+  function succeed() {
+    const { a, b, helper } = state;
+    state.done = true;
+    clearInterval(timerHandle);
+    const timeMs = Date.now() - state.startedAt;
+    updateTimer();
+    const total = a * b;
+
+    state.go.disabled = true;
+    state.problem.classList.add("solved");
+    state.mainTrain.classList.add("correct");
+    state.board.classList.add("solved");
+    state.msg.className = "train-msg good";
+    state.msg.textContent = `${a} × ${formatNumber(b)} = ${formatNumber(total)}`;
+    if (helper) {
+      state.sourceTrain.parentElement.querySelector(".track-label").textContent =
+        "Only the 1 is left, and × 1 changes nothing!";
+    }
+    problemLabel.textContent = `${state.label ? state.label + ": " : ""}${a} × ${formatNumber(b)} = ${formatNumber(total)}`;
+    progressEl.textContent = "All aboard! 🎉";
+
+    // Toot toot: the train chugs, puffs, then pulls out of the station.
+    const puff = el("span", "puff", "💨");
+    state.mainTrain.appendChild(puff);
+    setTimeout(() => state && state.mainTrain && state.mainTrain.classList.add("depart"), 700);
+
+    const current = state;
+    setTimeout(() => {
+      if (state === current && current.onWin) current.onWin({ a, b, total, timeMs });
+    }, 1900);
+  }
+
+  window.BubbleGame = { start, startTrain, stop, formatTime, formatNumber, launchConfetti };
 })();

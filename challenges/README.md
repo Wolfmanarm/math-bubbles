@@ -29,7 +29,7 @@ When a player beats every level of a challenge, it is marked **✓ Finished** fo
   "levels": [
     {"a": 7, "b": 2},
     {"a": 7, "b": 3, "tip": "Optional: shown on the win screen after this level."},
-    {"type": "zeros", "a": 7, "b": 100}
+    {"type": "train", "a": 7, "b": 100}
   ]
 }
 ```
@@ -47,7 +47,8 @@ When a player beats every level of a challenge, it is marked **✓ Finished** fo
 ## Level types
 
 - **Bubbles** (default): `{"a": 14, "b": 12}` gives 12 bubbles worth 14 each, which the player merges together. `a` can be 1–9999 and `b` can be 1–40. More than 10 bubbles are split into boxes of ten.
-- **Zeros**: `{"type": "zeros", "a": 48, "b": 1000}` asks the player to drag the right number of `0` bubbles onto the end of 48. `b` must be 10, 100, 1000, 10000, 100000 or 1000000.
+- **Train**: `{"type": "train", "a": 48, "b": 1000}`. The number 48 is a train (an engine pulling a 4 car and an 8 car). The player couples the right number of `0` cars onto the back of it from a depot, then presses Go. `b` must be 10, 100, 1000, 10000, 100000 or 1000000.
+  - Add `"helper": true` to also show the multiplier as a train: 1,000 is a `1` car pulling three `0` cars. The player moves those 0 cars onto their own train, and the level finishes when only the `1` is left. Use this for the first levels, so players discover the rule before they have to count zeros themselves.
 
 ## Check your file
 

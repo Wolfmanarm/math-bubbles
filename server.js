@@ -26,7 +26,7 @@ const CHECK_ONLY = require.main === module && process.argv.includes("--check");
 // Limits shared with the game page.
 const MAX_BUBBLE_VALUE = 9999;
 const MAX_BUBBLES = 40;
-const ZEROS_MULTIPLIERS = [10, 100, 1000, 10000, 100000, 1000000];
+const TRAIN_MULTIPLIERS = [10, 100, 1000, 10000, 100000, 1000000];
 
 // ---------- Challenges ----------
 //
@@ -47,14 +47,18 @@ function validateLevel(level, where) {
     if (!Number.isInteger(b) || b < 1 || b > MAX_BUBBLES) {
       throw new Error(`${where}: "b" must be a whole number from 1 to ${MAX_BUBBLES} for a bubbles level`);
     }
-  } else if (type === "zeros") {
-    if (!ZEROS_MULTIPLIERS.includes(b)) {
-      throw new Error(`${where}: "b" must be one of ${ZEROS_MULTIPLIERS.join(", ")} for a zeros level`);
+  } else if (type === "train") {
+    if (!TRAIN_MULTIPLIERS.includes(b)) {
+      throw new Error(`${where}: "b" must be one of ${TRAIN_MULTIPLIERS.join(", ")} for a train level`);
+    }
+    if (level.helper !== undefined && typeof level.helper !== "boolean") {
+      throw new Error(`${where}: "helper" must be true or false`);
     }
   } else {
-    throw new Error(`${where}: unknown level type "${type}" (use "bubbles" or "zeros")`);
+    throw new Error(`${where}: unknown level type "${type}" (use "bubbles" or "train")`);
   }
   const out = { type, a, b };
+  if (type === "train") out.helper = level.helper === true;
   if (typeof level.tip === "string" && level.tip.trim()) out.tip = level.tip.trim();
   return out;
 }

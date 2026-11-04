@@ -7,7 +7,7 @@ A bubble-merging multiplication game. Enter a problem like `14 × 12`: you get 1
 - **Accounts:** players sign in with a name and password (or create an account).
 - **Daily challenges:** the home page puts today's challenge at the top, with every earlier challenge listed below it. A challenge is marked **✓ Finished** once every level is beaten. Current challenges:
   - **Squares:** 1×1, 2×2 … up to 30×30.
-  - **Multiplying by 10, 100 … 1,000,000:** teaches that multiplying by these numbers just adds zeros to the end.
+  - **The Zero Train (× 10, 100 … 1,000,000):** numbers are trains with one car per digit. Players couple 0 cars onto the back of their number's train to see that multiplying by these numbers just adds zeros to the end.
 - **Free play:** pick any multiplication (up to 40 bubbles). More than 10 bubbles are grouped into boxes of ten.
 - **Admin page:** sign in as `admin` / `admin` to see every player's challenges, progress, best times and recent games.
 

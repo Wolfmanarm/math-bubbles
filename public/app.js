@@ -334,14 +334,18 @@
     const { challenge, index } = current;
     const level = challenge.levels[index];
     const opts = { label: `Level ${index + 1}`, onWin };
-    if (level.type === "zeros") Game.startZeros(level.a, level.b, opts);
+    if (level.type === "train") Game.startTrain(level.a, level.b, { ...opts, helper: level.helper });
     else Game.start(level.a, level.b, opts);
   }
 
-  function zerosTip(a, b) {
+  function trainTip(level) {
+    const { a, b } = level;
     const z = String(b).length - 1;
     const zeros = `${z} zero${z === 1 ? "" : "s"}`;
-    return `${fmt(b)} has ${zeros}, so ${a} × ${fmt(b)} is just ${a} with ${zeros} on the end!`;
+    if (level.helper) {
+      return `${fmt(b)} is a 1 with ${zeros}. You moved the ${zeros} onto ${a} and got ${fmt(a * b)}. The 1 stayed behind, because × 1 doesn't change anything!`;
+    }
+    return `${fmt(b)} has ${zeros}, so ${a} × ${fmt(b)} is just ${a} with ${zeros} on the end: ${fmt(a * b)}!`;
   }
 
   async function onWin({ a, b, total, timeMs }) {
@@ -352,7 +356,7 @@
 
     $("win-title").textContent = isChallenge ? `Level ${game.index + 1} beaten! 🎉` : "You did it! 🎉";
     $("win-equation").textContent = `${a} × ${fmt(b)} = ${fmt(total)}`;
-    const tip = level ? level.tip || (level.type === "zeros" ? zerosTip(a, b) : "") : "";
+    const tip = level ? level.tip || (level.type === "train" ? trainTip(level) : "") : "";
     $("win-tip").textContent = tip;
     $("win-tip").classList.toggle("hidden", !tip);
     $("win-time").textContent = `Time: ${Game.formatTime(timeMs)}`;
