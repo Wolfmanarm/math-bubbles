@@ -436,7 +436,7 @@
 
   // Keep sections and bubbles inside the play area when the window is resized.
   window.addEventListener("resize", () => {
-    if (!state) return;
+    if (!state || state.kind === "zeros") return;
     fitArea();
     if (state.sections.length) {
       const rect = area.getBoundingClientRect();
@@ -449,5 +449,199 @@
     state.bubbles.forEach(styleBubble);
   });
 
-  window.BubbleGame = { start, stop, formatTime, launchConfetti };
+  // ---------- Zeros levels (×10, ×100 … ×1,000,000) ----------
+  //
+  // The player sees, e.g., 48 × 1,000 and a pool of 0 bubbles. They drag (or
+  // tap) zeros onto the end of 48, then press Check. The right answer is the
+  // number with as many zeros on the end as the multiplier has.
+
+  const ZERO_POOL = 7;
+
+  function startZeros(a, b, { label, onWin } = {}) {
+    stop();
+    historyEl.innerHTML = "";
+    const needed = String(b).length - 1;
+    problemLabel.textContent = `${label ? label + ": " : ""}${a} × ${formatNumber(b)} = ?`;
+    hintEl.textContent = `Drag 0 bubbles onto the end of ${a} (or tap them), then press Check!`;
+    progressEl.textContent = "Add the zeros";
+    timerEl.textContent = formatTime(0);
+    fitArea();
+
+    state = { kind: "zeros", a, b, label, needed, onWin, startedAt: Date.now(), done: false, tries: 0 };
+
+    const board = el("div", "zeros-board");
+
+    const problem = el("div", "zeros-problem");
+    problem.append(el("span", "zp-a", String(a)), el("span", "zp-op", "×"));
+    const multiplier = el("span", "zp-b");
+    formatNumber(b).split("").forEach((ch, i) => {
+      multiplier.appendChild(el("span", ch === "0" ? "zp-zero" : ch === "," ? "zp-comma" : "zp-digit", ch));
+    });
+    problem.appendChild(multiplier);
+
+    const answer = el("div", "zeros-answer");
+    answer.setAttribute("aria-label", "Your answer");
+    String(a).split("").forEach((d) => answer.appendChild(el("span", "digit-tile", d)));
+    const slot = el("span", "drop-slot", "+0");
+    slot.setAttribute("aria-hidden", "true");
+    answer.appendChild(slot);
+
+    const pool = el("div", "zeros-pool");
+    for (let i = 0; i < ZERO_POOL; i++) {
+      const z = el("button", "zero-bubble", "0");
+      z.type = "button";
+      z.setAttribute("aria-label", "Zero bubble: add to the end of the number");
+      z.addEventListener("pointerdown", (e) => dragZero(e, z));
+      z.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleZero(z);
+        }
+      });
+      pool.appendChild(z);
+    }
+
+    const check = el("button", "primary zeros-check", "Check");
+    check.type = "button";
+    check.addEventListener("click", checkZeros);
+
+    const msg = el("p", "zeros-msg");
+    msg.setAttribute("role", "status");
+
+    board.append(problem, answer, pool, check, msg);
+    area.appendChild(board);
+    Object.assign(state, { board, problem, answer, slot, pool, msg });
+    sizeTiles();
+
+    timerHandle = setInterval(updateTimer, 250);
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function formatNumber(n) {
+    return n.toLocaleString("en-US");
+  }
+
+  function attachedZeros() {
+    return state.answer.querySelectorAll(".zero-bubble").length;
+  }
+
+  // Shrink the digit tiles when the answer gets long so it stays on one line.
+  function sizeTiles() {
+    const count = String(state.a).length + attachedZeros() + 1;
+    const width = state.answer.clientWidth || area.clientWidth;
+    const gap = 4;
+    const size = Math.max(24, Math.min(56, (width - 22 - gap * (count - 1)) / count));
+    state.answer.style.setProperty("--tile", `${size}px`);
+  }
+
+  function toggleZero(z) {
+    if (!state || state.kind !== "zeros" || state.done) return;
+    if (z.parentElement === state.answer) {
+      state.pool.appendChild(z);
+      z.setAttribute("aria-label", "Zero bubble: add to the end of the number");
+    } else {
+      state.answer.insertBefore(z, state.slot);
+      z.setAttribute("aria-label", "Zero on the end: tap to take it off");
+    }
+    z.classList.remove("wrong");
+    state.answer.classList.remove("shake");
+    state.msg.textContent = "";
+    state.msg.className = "zeros-msg";
+    progressEl.textContent = `${attachedZeros()} zero${attachedZeros() === 1 ? "" : "s"} on the end`;
+    sizeTiles();
+  }
+
+  function dragZero(e, z) {
+    if (!state || state.kind !== "zeros" || state.done) return;
+    e.preventDefault();
+    z.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 8) {
+        moved = true;
+        z.classList.add("dragging");
+      }
+      if (moved) z.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
+      if (moved) state.answer.classList.toggle("over", overAnswer(ev));
+    };
+
+    const onUp = (ev) => {
+      z.removeEventListener("pointermove", onMove);
+      z.removeEventListener("pointerup", onUp);
+      z.removeEventListener("pointercancel", onUp);
+      z.classList.remove("dragging");
+      z.style.transform = "";
+      if (!state || state.kind !== "zeros") return;
+      state.answer.classList.remove("over");
+      const inAnswer = z.parentElement === state.answer;
+      if (!moved) {
+        toggleZero(z); // a tap adds or removes the zero
+      } else if (!inAnswer && overAnswer(ev)) {
+        toggleZero(z); // dropped onto the number
+      } else if (inAnswer && !overAnswer(ev)) {
+        toggleZero(z); // dragged off the number
+      }
+    };
+
+    z.addEventListener("pointermove", onMove);
+    z.addEventListener("pointerup", onUp);
+    z.addEventListener("pointercancel", onUp);
+  }
+
+  function overAnswer(ev) {
+    const r = state.answer.getBoundingClientRect();
+    const pad = 30;
+    return ev.clientX > r.left - pad && ev.clientX < r.right + pad && ev.clientY > r.top - pad && ev.clientY < r.bottom + pad;
+  }
+
+  function checkZeros() {
+    if (!state || state.kind !== "zeros" || state.done) return;
+    const have = attachedZeros();
+    const { a, b, needed } = state;
+    if (have === needed) {
+      state.done = true;
+      clearInterval(timerHandle);
+      const timeMs = Date.now() - state.startedAt;
+      updateTimer();
+      const total = a * b;
+      state.answer.classList.add("correct");
+      state.problem.classList.add("solved");
+      state.msg.className = "zeros-msg good";
+      state.msg.textContent = `${a} × ${formatNumber(b)} = ${formatNumber(total)}`;
+      problemLabel.textContent = `${state.label ? state.label + ": " : ""}${a} × ${formatNumber(b)} = ${formatNumber(total)}`;
+      progressEl.textContent = "Correct!";
+      const current = state;
+      setTimeout(() => {
+        if (state === current && current.onWin) current.onWin({ a, b, total, timeMs });
+      }, 1100);
+      return;
+    }
+
+    state.tries += 1;
+    state.answer.classList.remove("shake");
+    void state.answer.offsetWidth; // restart the shake animation
+    state.answer.classList.add("shake");
+    state.msg.className = "zeros-msg bad";
+    const word = have < needed ? "Not enough zeros" : "Too many zeros";
+    if (state.tries >= 2) {
+      // Second miss: point at the zeros in the multiplier.
+      state.problem.classList.add("show-zeros");
+      state.msg.textContent = `${word}! Look: ${formatNumber(b)} has ${needed} zero${needed === 1 ? "" : "s"}.`;
+    } else {
+      state.msg.textContent = `${word}! Count the zeros in ${formatNumber(b)} and try again.`;
+    }
+  }
+
+  window.BubbleGame = { start, startZeros, stop, formatTime, formatNumber, launchConfetti };
 })();

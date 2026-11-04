@@ -1,13 +1,14 @@
-// Screens, sign-in, challenge mode and the admin scores page.
+// Screens, sign-in, daily challenges and the admin scores page.
 (() => {
   "use strict";
 
-  const CHALLENGE_LEVELS = 30;
   const Game = window.BubbleGame;
   const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Game.formatNumber(n);
 
-  let me = null; // { name, isAdmin, challenge: { highest, best } }
-  let current = null; // { mode: "free" | "challenge", a, b }
+  let me = null; // { name, isAdmin, progress: { [challengeId]: { highest, best, finishedAt } } }
+  let challenges = []; // newest first, only ones dated today or earlier
+  let current = null; // { kind: "free", a, b } | { kind: "challenge", challenge, index }
 
   // ---------- API ----------
 
@@ -27,6 +28,73 @@
     return data;
   }
 
+  async function loadChallenges() {
+    const { challenges: all } = await api("/api/challenges");
+    const today = localDate();
+    challenges = all.filter((c) => c.date <= today);
+  }
+
+  // ---------- Dates ----------
+
+  function pad(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function localDate(d = new Date()) {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function parseDate(s) {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  // "Today", "Yesterday" or e.g. "Mon, Nov 3".
+  function dayLabel(dateStr) {
+    if (dateStr === localDate()) return "Today";
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    if (dateStr === localDate(y)) return "Yesterday";
+    return parseDate(dateStr).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  }
+
+  function longDate(dateStr) {
+    return parseDate(dateStr).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  }
+
+  function formatDate(ts) {
+    return new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function shortDay(ts) {
+    return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  // ---------- Progress helpers ----------
+
+  function progressFor(challenge, user = me) {
+    return (user.progress && user.progress[challenge.id]) || { highest: 0, best: {}, finishedAt: null };
+  }
+
+  function isFinished(challenge, user = me) {
+    return !!progressFor(challenge, user).finishedAt;
+  }
+
+  function levelLabel(level) {
+    return `${level.a} × ${fmt(level.b)}`;
+  }
+
+  function totalTime(best) {
+    return Object.values(best || {}).reduce((s, t) => s + t, 0);
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
   // ---------- Views ----------
 
   function show(view) {
@@ -35,6 +103,7 @@
     $("win").classList.add("hidden");
     document.querySelectorAll(".confetti").forEach((c) => c.remove());
     if (view !== "game") Game.stop();
+    window.scrollTo(0, 0);
   }
 
   function setUser(user) {
@@ -43,17 +112,25 @@
     if (me) $("user-name").textContent = me.name;
   }
 
-  function goHome() {
+  async function goHome() {
     if (!me) return show("auth");
     if (me.isAdmin) return showAdmin();
-    updateMenu();
-    show("menu");
+    try {
+      await loadChallenges();
+    } catch (err) {
+      if (err.status === 401) {
+        setUser(null);
+        return show("auth");
+      }
+    }
+    renderHome();
+    show("home");
   }
 
   document.querySelectorAll("[data-back]").forEach((btn) => btn.addEventListener("click", goHome));
   $("menu-btn").addEventListener("click", goHome);
   $("quit-btn").addEventListener("click", () => {
-    if (current && current.mode === "challenge") showChallenge();
+    if (current && current.kind === "challenge") openChallenge(current.challenge);
     else goHome();
   });
 
@@ -86,23 +163,90 @@
     $("auth-name").focus();
   });
 
-  // ---------- Menu ----------
+  // ---------- Home ----------
 
-  function updateMenu() {
-    const done = me.challenge.highest;
-    $("menu-challenge-sub").textContent =
-      done >= CHALLENGE_LEVELS
-        ? "All 30 levels beaten! 🌟"
-        : done === 0
-          ? "1×1 all the way to 30×30"
-          : `${done} of ${CHALLENGE_LEVELS} levels beaten`;
+  function renderHome() {
+    const today = localDate();
+    const todays = challenges.filter((c) => c.date === today);
+    const featured = todays[0] || challenges[0];
+
+    // Big card for today's challenge (or the newest one if none is out today).
+    const box = $("today");
+    box.innerHTML = "";
+    if (featured) {
+      const p = progressFor(featured);
+      const total = featured.levels.length;
+      const done = isFinished(featured);
+      const card = el("div", "today-card" + (done ? " finished" : ""));
+
+      const tag = el("div", "today-tag");
+      tag.textContent = featured.date === today
+        ? `⭐ Today's challenge · ${longDate(featured.date)}`
+        : `Newest challenge · ${longDate(featured.date)} — a new one is coming soon!`;
+      card.appendChild(tag);
+
+      const main = el("div", "today-main");
+      main.appendChild(el("span", "today-emoji", featured.emoji));
+      const text = el("div");
+      text.append(el("h2", "today-title", featured.title), el("p", "today-desc", featured.description));
+      main.appendChild(text);
+      card.appendChild(main);
+
+      card.appendChild(progressRow(p.highest, total, done));
+
+      const btn = el("button", "primary today-btn",
+        done ? "✓ Finished! Play again" : p.highest === 0 ? "Start today's challenge →" : `Keep going: level ${p.highest + 1} →`);
+      btn.type = "button";
+      btn.addEventListener("click", () => openChallenge(featured));
+      card.appendChild(btn);
+      box.appendChild(card);
+    } else {
+      box.appendChild(el("div", "today-card empty", "No challenges yet — check back soon!"));
+    }
+
+    // Every challenge, newest first.
+    const list = $("challenge-list");
+    list.innerHTML = "";
+    for (const c of challenges) {
+      const p = progressFor(c);
+      const total = c.levels.length;
+      const done = isFinished(c);
+      const item = el("button", "challenge-item" + (done ? " finished" : ""));
+      item.type = "button";
+      item.appendChild(el("span", "ci-emoji", c.emoji));
+      const body = el("span", "ci-body");
+      body.append(
+        el("span", "ci-date", dayLabel(c.date)),
+        el("span", "ci-title", c.title),
+        el("span", "ci-sub", done ? `Finished on ${shortDay(p.finishedAt)}` : `${p.highest} of ${total} levels done`)
+      );
+      item.appendChild(body);
+      let pill;
+      if (done) pill = el("span", "ci-pill done", "✓ Finished");
+      else if (c.date === today && p.highest === 0) pill = el("span", "ci-pill new", "New!");
+      else if (p.highest > 0) pill = el("span", "ci-pill", `${p.highest}/${total}`);
+      else pill = el("span", "ci-pill", "Start");
+      item.appendChild(pill);
+      item.setAttribute("aria-label", `${c.title}, ${dayLabel(c.date)}, ${done ? "finished" : `${p.highest} of ${total} levels done`}`);
+      item.addEventListener("click", () => openChallenge(c));
+      list.appendChild(item);
+    }
+  }
+
+  function progressRow(doneCount, total, finished) {
+    const row = el("div", "progress-row");
+    const bar = el("div", "bar");
+    const fill = el("div", "bar-fill");
+    fill.style.width = `${Math.round((doneCount / total) * 100)}%`;
+    bar.appendChild(fill);
+    row.append(bar, el("span", "bar-text", finished ? `✓ All ${total} levels done` : `${doneCount} / ${total} levels`));
+    return row;
   }
 
   $("menu-free").addEventListener("click", () => {
     show("setup");
     $("num-a").focus();
   });
-  $("menu-challenge").addEventListener("click", showChallenge);
 
   // ---------- Free play ----------
 
@@ -119,62 +263,117 @@
       err.textContent = "The second number should be between 1 and 40.";
     } else {
       err.textContent = "";
-      play("free", a, b);
+      current = { kind: "free", a, b };
+      play();
     }
   });
 
-  // ---------- Challenge ----------
+  // ---------- A challenge: lesson + levels ----------
 
-  function showChallenge() {
+  function openChallenge(c) {
+    const p = progressFor(c);
+    const done = isFinished(c);
+    $("ch-emoji").textContent = c.emoji;
+    $("ch-title").textContent = c.title;
+    $("ch-date").textContent = c.date === localDate() ? "⭐ Today's challenge" : longDate(c.date);
+    $("ch-desc").textContent = c.description;
+
+    const banner = $("ch-finished");
+    banner.classList.toggle("hidden", !done);
+    if (done) {
+      banner.textContent = `✓ Challenge finished on ${shortDay(p.finishedAt)}! You can replay any level to beat your best time.`;
+    }
+
+    // The lesson is open until the first level is beaten, then tucked away.
+    const intro = $("ch-intro");
+    intro.innerHTML = "";
+    intro.classList.toggle("hidden", !c.intro.length);
+    if (c.intro.length) {
+      const details = el("details");
+      details.open = p.highest === 0;
+      details.appendChild(el("summary", null, "📖 How it works"));
+      c.intro.forEach((para) => details.appendChild(el("p", null, para)));
+      intro.appendChild(details);
+    }
+
     const grid = $("level-grid");
     grid.innerHTML = "";
-    const unlocked = me.challenge.highest + 1;
-    for (let n = 1; n <= CHALLENGE_LEVELS; n++) {
-      const btn = document.createElement("button");
+    c.levels.forEach((level, i) => {
+      const btn = el("button", "level");
       btn.type = "button";
-      btn.className = "level";
-      const best = me.challenge.best[n];
-      if (n <= me.challenge.highest) btn.classList.add("beaten");
-      else if (n === unlocked) btn.classList.add("next");
+      const best = p.best[i];
+      const locked = i > p.highest;
+      if (i < p.highest) btn.classList.add("beaten");
+      else if (i === p.highest) btn.classList.add("next");
       else btn.classList.add("locked");
-      btn.disabled = n > unlocked;
-      btn.innerHTML =
-        `<span class="level-num">${n}×${n}</span>` +
-        `<span class="level-sub">${best !== undefined ? "⭐ " + Game.formatTime(best) : n > unlocked ? "🔒" : "Play!"}</span>`;
-      btn.setAttribute("aria-label", `Level ${n}: ${n} times ${n}${btn.disabled ? ", locked" : ""}`);
-      btn.addEventListener("click", () => play("challenge", n, n));
+      btn.disabled = locked;
+      const label = levelLabel(level);
+      btn.append(
+        el("span", "level-index", `Level ${i + 1}`),
+        el("span", "level-num" + (label.length > 9 ? " long" : ""), label),
+        el("span", "level-sub", best !== undefined ? "⭐ " + Game.formatTime(best) : locked ? "🔒" : "Play!")
+      );
+      btn.setAttribute("aria-label", `Level ${i + 1}: ${level.a} times ${level.b}${locked ? ", locked" : ""}`);
+      btn.addEventListener("click", () => {
+        current = { kind: "challenge", challenge: c, index: i };
+        play();
+      });
       grid.appendChild(btn);
-    }
+    });
     show("challenge");
   }
 
   // ---------- Playing ----------
 
-  function play(mode, a, b) {
-    current = { mode, a, b };
+  function play() {
     show("game");
-    Game.start(a, b, {
-      label: mode === "challenge" ? `Level ${a}` : "",
-      onWin: (result) => onWin(mode, result),
-    });
+    if (current.kind === "free") {
+      Game.start(current.a, current.b, { onWin: onWin });
+      return;
+    }
+    const { challenge, index } = current;
+    const level = challenge.levels[index];
+    const opts = { label: `Level ${index + 1}`, onWin };
+    if (level.type === "zeros") Game.startZeros(level.a, level.b, opts);
+    else Game.start(level.a, level.b, opts);
   }
 
-  async function onWin(mode, { a, b, total, timeMs }) {
-    const isLastLevel = mode === "challenge" && a === CHALLENGE_LEVELS;
-    $("win-title").textContent =
-      isLastLevel ? "Challenge complete! 🏆" : mode === "challenge" ? `Level ${a} beaten! 🎉` : "You did it! 🎉";
-    $("win-equation").textContent = `${a} × ${b} = ${total}`;
+  function zerosTip(a, b) {
+    const z = String(b).length - 1;
+    const zeros = `${z} zero${z === 1 ? "" : "s"}`;
+    return `${fmt(b)} has ${zeros}, so ${a} × ${fmt(b)} is just ${a} with ${zeros} on the end!`;
+  }
+
+  async function onWin({ a, b, total, timeMs }) {
+    const game = current;
+    const isChallenge = game.kind === "challenge";
+    const level = isChallenge ? game.challenge.levels[game.index] : null;
+    const isLast = isChallenge && game.index === game.challenge.levels.length - 1;
+
+    $("win-title").textContent = isChallenge ? `Level ${game.index + 1} beaten! 🎉` : "You did it! 🎉";
+    $("win-equation").textContent = `${a} × ${fmt(b)} = ${fmt(total)}`;
+    const tip = level ? level.tip || (level.type === "zeros" ? zerosTip(a, b) : "") : "";
+    $("win-tip").textContent = tip;
+    $("win-tip").classList.toggle("hidden", !tip);
     $("win-time").textContent = `Time: ${Game.formatTime(timeMs)}`;
-    $("next-btn").classList.toggle("hidden", mode !== "challenge" || isLastLevel);
-    $("again-btn").textContent = mode === "challenge" ? "Try again" : "Play again";
+    $("next-btn").classList.toggle("hidden", !isChallenge || isLast);
+    $("again-btn").textContent = isChallenge ? "Try again" : "Play again";
     $("win").classList.remove("hidden");
     Game.launchConfetti();
 
     try {
-      const prevBest = mode === "challenge" ? me.challenge.best[a] : undefined;
-      setUser(await api("/api/score", { mode, a, b, timeMs }));
-      if (mode === "challenge" && prevBest !== undefined && timeMs < prevBest) {
-        $("win-time").textContent += " — new best time!";
+      if (isChallenge) {
+        const prevBest = progressFor(game.challenge).best[game.index];
+        const res = await api("/api/progress", { challengeId: game.challenge.id, level: game.index, timeMs });
+        setUser(res);
+        if (prevBest !== undefined && timeMs < prevBest) $("win-time").textContent += " — new best time!";
+        if (res.justFinished) {
+          $("win-title").textContent = "Challenge finished! 🏆";
+          $("win-time").textContent += ` · You finished “${game.challenge.title}”!`;
+          Game.launchConfetti();
+        }
+      } else {
+        setUser(await api("/api/score", { a, b, timeMs }));
       }
     } catch (err) {
       $("win-time").textContent += ` (Couldn't save your score: ${err.message})`;
@@ -184,17 +383,17 @@
 
   $("again-btn").addEventListener("click", () => {
     if (!current) return goHome();
-    if (current.mode === "free") {
+    if (current.kind === "free") {
       show("setup");
       $("num-a").focus();
     } else {
-      play("challenge", current.a, current.b);
+      play();
     }
   });
 
   $("next-btn").addEventListener("click", () => {
-    const n = current.a + 1;
-    play("challenge", n, n);
+    current = { ...current, index: current.index + 1 };
+    play();
   });
 
   // ---------- Admin ----------
@@ -205,42 +404,55 @@
     tbody.innerHTML = "";
     $("admin-summary").textContent = "Loading…";
     try {
-      const { users, challengeLevels } = await api("/api/admin/users");
-      users.sort(
-        (x, y) =>
-          y.challenge.highest - x.challenge.highest ||
-          totalTime(x.challenge.best) - totalTime(y.challenge.best) ||
-          x.name.localeCompare(y.name)
-      );
+      const { users, challenges: all } = await api("/api/admin/users");
+      const today = localDate();
+      const visible = all.filter((c) => c.date <= today);
+      const todays = visible.find((c) => c.date === today) || visible[0];
+      $("admin-today-col").textContent = todays
+        ? `${todays.date === today ? "Today" : "Newest"}: ${todays.emoji} ${todays.title}`
+        : "Today's challenge";
+
+      const finishedCount = (u) => visible.filter((c) => isFinished(c, u)).length;
+      const levelsDone = (u) => visible.reduce((s, c) => s + progressFor(c, u).highest, 0);
+      users.sort((x, y) => finishedCount(y) - finishedCount(x) || levelsDone(y) - levelsDone(x) || x.name.localeCompare(y.name));
+
       $("admin-empty").classList.toggle("hidden", users.length > 0);
       $("admin-table").classList.toggle("hidden", users.length === 0);
-      const finished = users.filter((u) => u.challenge.highest >= challengeLevels).length;
+      const todayDone = todays ? users.filter((u) => isFinished(todays, u)).length : 0;
       $("admin-summary").textContent =
-        `${users.length} player${users.length === 1 ? "" : "s"}, ${finished} finished the challenge. Click a row to see recent games.`;
+        `${users.length} player${users.length === 1 ? "" : "s"} · ${visible.length} challenge${visible.length === 1 ? "" : "s"} published` +
+        (todays ? ` · ${todayDone} finished ${todays.date === today ? "today's" : "the newest"} challenge` : "") +
+        ". Click a player to see every challenge.";
 
       for (const u of users) {
-        const row = document.createElement("tr");
-        row.className = "player-row";
+        const row = el("tr", "player-row");
         row.tabIndex = 0;
-        const pct = Math.round((u.challenge.highest / challengeLevels) * 100);
-        row.innerHTML = `
-          <td class="name"></td>
-          <td>
-            <div class="level-bar" title="${u.challenge.highest} of ${challengeLevels}">
-              <div style="width:${pct}%"></div>
-            </div>
-            <span class="level-text">${u.challenge.highest} / ${challengeLevels}</span>
-          </td>
-          <td>${u.challenge.highest ? Game.formatTime(totalTime(u.challenge.best)) : "—"}</td>
-          <td>${u.gamesPlayed} <span class="muted">(${u.freeGames} free play)</span></td>
-          <td>${u.gamesPlayed ? formatDate(u.lastSeen) : "Never"}</td>`;
-        row.querySelector(".name").textContent = u.name;
+        row.appendChild(el("td", "name", u.name));
 
-        const detail = document.createElement("tr");
-        detail.className = "detail-row hidden";
-        const cell = document.createElement("td");
+        const finishedCell = el("td");
+        const fin = finishedCount(u);
+        finishedCell.appendChild(el("strong", null, `${fin} / ${visible.length}`));
+        const emojis = visible.filter((c) => isFinished(c, u)).map((c) => c.emoji).join(" ");
+        if (emojis) finishedCell.appendChild(el("span", "muted", ` ${emojis}`));
+        row.appendChild(finishedCell);
+
+        const todayCell = el("td");
+        if (todays) {
+          const p = progressFor(todays, u);
+          if (isFinished(todays, u)) todayCell.appendChild(el("span", "ci-pill done", "✓ Finished"));
+          else todayCell.appendChild(progressRow(p.highest, todays.levels.length, false));
+        }
+        row.appendChild(todayCell);
+
+        const gamesCell = el("td", null, String(u.gamesPlayed));
+        gamesCell.appendChild(el("span", "muted", ` (${u.freeGames} free play)`));
+        row.appendChild(gamesCell);
+        row.appendChild(el("td", null, u.gamesPlayed ? formatDate(u.lastSeen) : "Never"));
+
+        const detail = el("tr", "detail-row hidden");
+        const cell = el("td");
         cell.colSpan = 5;
-        cell.appendChild(renderDetail(u));
+        cell.appendChild(renderDetail(u, visible, all));
         detail.appendChild(cell);
 
         const toggle = () => detail.classList.toggle("hidden");
@@ -258,40 +470,41 @@
     }
   }
 
-  function renderDetail(u) {
-    const wrap = document.createElement("div");
-    wrap.className = "detail";
+  function renderDetail(u, visible, all) {
+    const wrap = el("div", "detail");
 
-    const levels = document.createElement("div");
-    levels.className = "detail-levels";
-    const beaten = Object.keys(u.challenge.best).map(Number).sort((a, b) => a - b);
-    levels.innerHTML = beaten.length
-      ? "<strong>Best challenge times:</strong> " +
-        beaten.map((n) => `<span class="chip">${n}×${n} ${Game.formatTime(u.challenge.best[n])}</span>`).join(" ")
-      : "<strong>Best challenge times:</strong> none yet";
-    wrap.appendChild(levels);
+    const table = el("div", "detail-challenges");
+    for (const c of visible) {
+      const p = progressFor(c, u);
+      const line = el("div", "detail-challenge");
+      line.appendChild(el("span", "dc-title", `${c.emoji} ${c.title}`));
+      line.appendChild(el("span", "dc-date muted", dayLabel(c.date)));
+      if (isFinished(c, u)) {
+        line.appendChild(el("span", "ci-pill done", `✓ Finished ${shortDay(p.finishedAt)}`));
+      } else {
+        line.appendChild(el("span", "ci-pill", `${p.highest} / ${c.levels.length} levels`));
+      }
+      line.appendChild(el("span", "muted", p.highest ? `best times total ${Game.formatTime(totalTime(p.best))}` : "not started"));
+      table.appendChild(line);
+    }
+    wrap.appendChild(table);
 
-    const recent = document.createElement("div");
-    recent.className = "detail-recent";
-    recent.innerHTML = u.recentGames.length
-      ? "<strong>Recent games:</strong> " +
-        u.recentGames
-          .map(
-            (g) =>
-              `<span class="chip">${g.mode === "challenge" ? "🏆" : "🫧"} ${g.a}×${g.b} in ${Game.formatTime(g.timeMs)} · ${formatDate(g.at)}</span>`
-          )
-          .join(" ")
-      : "<strong>Recent games:</strong> none yet";
+    const recent = el("div", "detail-recent");
+    recent.appendChild(el("strong", null, "Recent games: "));
+    if (!u.recentGames.length) recent.appendChild(document.createTextNode("none yet"));
+    for (const g of u.recentGames) {
+      let text;
+      if (g.mode === "challenge") {
+        const c = all.find((x) => x.id === g.challengeId);
+        text = `${c ? c.emoji : "🏆"} Level ${g.level + 1}: ${g.a}×${fmt(g.b)}`;
+      } else {
+        text = `🫧 ${g.a}×${g.b}`;
+      }
+      recent.appendChild(el("span", "chip", `${text} in ${Game.formatTime(g.timeMs)} · ${formatDate(g.at)}`));
+      recent.appendChild(document.createTextNode(" "));
+    }
     wrap.appendChild(recent);
     return wrap;
-  }
-
-  function totalTime(best) {
-    return Object.values(best).reduce((s, t) => s + t, 0);
-  }
-
-  function formatDate(ts) {
-    return new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
   $("admin-refresh").addEventListener("click", showAdmin);
@@ -304,7 +517,7 @@
     } catch {
       setUser(null);
     }
-    goHome();
+    await goHome();
     if (!me) $("auth-name").focus();
   })();
 })();

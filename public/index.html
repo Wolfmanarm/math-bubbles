@@ -33,18 +33,24 @@
     <p id="auth-error" class="error" role="alert"></p>
   </section>
 
-  <!-- Main menu -->
-  <section id="view-menu" class="view hidden">
-    <div class="menu">
-      <button id="menu-free" type="button" class="menu-tile">
-        <span class="menu-icon">🫧</span>
-        <span class="menu-title">Free play</span>
-        <span class="menu-sub">Pick any multiplication</span>
-      </button>
-      <button id="menu-challenge" type="button" class="menu-tile">
-        <span class="menu-icon">🏆</span>
-        <span class="menu-title">Challenge</span>
-        <span id="menu-challenge-sub" class="menu-sub">1×1 all the way to 30×30</span>
+  <!-- Home: today's challenge, then every challenge, then free play -->
+  <section id="view-home" class="view hidden">
+    <div id="today"></div>
+
+    <div class="home-section">
+      <h2 class="section-title">All challenges</h2>
+      <div id="challenge-list" class="challenge-list"></div>
+    </div>
+
+    <div class="home-section">
+      <h2 class="section-title">Just for fun</h2>
+      <button id="menu-free" type="button" class="challenge-item free-item">
+        <span class="ci-emoji">🫧</span>
+        <span class="ci-body">
+          <span class="ci-title">Free play</span>
+          <span class="ci-sub">Pick any multiplication you like</span>
+        </span>
+        <span class="ci-go">Play →</span>
       </button>
     </div>
   </section>
@@ -59,15 +65,23 @@
     </form>
     <p class="hint">The first number goes in every bubble. The second number is how many bubbles you get (up to 40).</p>
     <p id="error" class="error" role="alert"></p>
-    <button type="button" class="back-btn small" data-back>← Back</button>
+    <button type="button" class="back-btn small" data-back>← Home</button>
   </section>
 
-  <!-- Challenge levels -->
+  <!-- One challenge: lesson + levels -->
   <section id="view-challenge" class="card view hidden">
-    <h2>Challenge</h2>
-    <p class="hint">Beat each level to unlock the next one. Your best time is shown under each level.</p>
+    <button type="button" class="back-btn small top-back" data-back>← Home</button>
+    <div class="challenge-head">
+      <span id="ch-emoji" class="ch-emoji"></span>
+      <div>
+        <div id="ch-date" class="ch-date"></div>
+        <h2 id="ch-title"></h2>
+      </div>
+    </div>
+    <p id="ch-desc" class="ch-desc"></p>
+    <div id="ch-finished" class="finished-banner hidden"></div>
+    <div id="ch-intro" class="lesson hidden"></div>
     <div id="level-grid" class="level-grid"></div>
-    <button type="button" class="back-btn small" data-back>← Back</button>
   </section>
 
   <!-- Game -->
@@ -97,8 +111,8 @@
         <thead>
           <tr>
             <th>Name</th>
-            <th>Challenge level</th>
-            <th>Challenge total time</th>
+            <th>Challenges finished</th>
+            <th id="admin-today-col">Today's challenge</th>
             <th>Games played</th>
             <th>Last played</th>
           </tr>
@@ -114,11 +128,12 @@
     <div class="win-card">
       <div id="win-title" class="win-title">You did it! 🎉</div>
       <div id="win-equation" class="win-equation"></div>
+      <div id="win-tip" class="win-tip hidden"></div>
       <div id="win-time" class="win-time"></div>
       <div class="win-buttons">
         <button id="next-btn" type="button" class="primary hidden">Next level →</button>
         <button id="again-btn" type="button" class="primary">Play again</button>
-        <button id="menu-btn" type="button">Menu</button>
+        <button id="menu-btn" type="button">Home</button>
       </div>
     </div>
   </div>
