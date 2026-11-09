@@ -103,6 +103,7 @@
     $("win").classList.add("hidden");
     document.querySelectorAll(".confetti").forEach((c) => c.remove());
     if (view !== "game") Game.stop();
+    if (view !== "explainer") unmountExplainer();
     window.scrollTo(0, 0);
   }
 
@@ -204,6 +205,8 @@
       box.appendChild(el("div", "today-card empty", "No challenges yet — check back soon!"));
     }
 
+    renderExplainers($("explainer-list"));
+
     // Every challenge, newest first.
     const list = $("challenge-list");
     list.innerHTML = "";
@@ -241,6 +244,51 @@
     bar.appendChild(fill);
     row.append(bar, el("span", "bar-text", finished ? `✓ All ${total} levels done` : `${doneCount} / ${total} levels`));
     return row;
+  }
+
+  // ---------- Explainers ("Learn") ----------
+
+  let explainerCleanup = null;
+
+  function explainerButton(ex, className) {
+    const item = el("button", className);
+    item.type = "button";
+    item.appendChild(el("span", "ci-emoji", ex.emoji));
+    const body = el("span", "ci-body");
+    body.append(el("span", "ci-title", ex.title), el("span", "ci-sub", ex.description));
+    item.appendChild(body);
+    item.appendChild(el("span", "ci-go", "Watch ▶"));
+    item.addEventListener("click", () => openExplainer(ex));
+    return item;
+  }
+
+  function renderExplainers(container) {
+    container.innerHTML = "";
+    window.Explainers.list.forEach((ex) => container.appendChild(explainerButton(ex, "challenge-item explainer-item")));
+  }
+
+  function unmountExplainer() {
+    if (explainerCleanup) explainerCleanup();
+    explainerCleanup = null;
+    $("explainer-root").innerHTML = "";
+  }
+
+  async function openExplainer(ex) {
+    show("explainer");
+    $("ex-emoji").textContent = ex.emoji;
+    $("ex-title").textContent = ex.title;
+    const root = $("explainer-root");
+    root.innerHTML = "";
+    root.appendChild(el("p", "hint", "Loading…"));
+    try {
+      const mount = await window.Explainers.load(ex.id);
+      if ($("view-explainer").classList.contains("hidden")) return; // left while loading
+      root.innerHTML = "";
+      explainerCleanup = mount(root) || null;
+    } catch (err) {
+      root.innerHTML = "";
+      root.appendChild(el("p", "error", err.message));
+    }
   }
 
   $("menu-free").addEventListener("click", () => {
@@ -512,6 +560,7 @@
   }
 
   $("admin-refresh").addEventListener("click", showAdmin);
+  renderExplainers($("admin-explainers"));
 
   // ---------- Start ----------
 

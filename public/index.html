@@ -38,6 +38,11 @@
     <div id="today"></div>
 
     <div class="home-section">
+      <h2 class="section-title">Learn: watch and play</h2>
+      <div id="explainer-list" class="explainer-list"></div>
+    </div>
+
+    <div class="home-section">
       <h2 class="section-title">All challenges</h2>
       <div id="challenge-list" class="challenge-list"></div>
     </div>
@@ -84,6 +89,19 @@
     <div id="level-grid" class="level-grid"></div>
   </section>
 
+  <!-- One explainer animation -->
+  <section id="view-explainer" class="card view hidden">
+    <button type="button" class="back-btn small top-back" data-back>← Home</button>
+    <div class="challenge-head">
+      <span id="ex-emoji" class="ch-emoji"></span>
+      <div>
+        <div class="ch-date">Learn</div>
+        <h2 id="ex-title"></h2>
+      </div>
+    </div>
+    <div id="explainer-root"></div>
+  </section>
+
   <!-- Game -->
   <section id="view-game" class="view hidden">
     <div class="status card">
@@ -121,6 +139,10 @@
       </table>
     </div>
     <p id="admin-empty" class="hint hidden">Nobody has made an account yet.</p>
+    <div class="admin-preview">
+      <h3 class="section-title">Preview the Learn section</h3>
+      <div id="admin-explainers" class="explainer-list"></div>
+    </div>
   </section>
 
   <!-- Win popup -->
@@ -138,6 +160,7 @@
     </div>
   </div>
 
+  <script src="explainers/index.js"></script>
   <script src="game.js"></script>
   <script src="app.js"></script>
 </body>

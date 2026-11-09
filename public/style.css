@@ -796,3 +796,211 @@ button.small { font-size: 0.9rem; padding: 6px 14px; }
   .challenge-item { padding: 12px; gap: 10px; }
   .level-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 }
+
+/* ---------- Learn: explainers ---------- */
+
+.explainer-list { display: flex; flex-direction: column; gap: 10px; }
+.explainer-item { background: linear-gradient(135deg, #fffdf3, #fff8e1); border: 2px solid #ffe08a; }
+.admin-preview { margin-top: 22px; }
+.admin-preview .section-title { font-size: 1rem; }
+
+#view-explainer { max-width: 860px; }
+#explainer-root { margin-top: 12px; }
+
+.sx { display: flex; flex-direction: column; gap: 14px; }
+
+.sx-panel {
+  background: #fff8e1;
+  border: 2px solid #ffd166;
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.sx-story-text { margin: 0 0 12px; font-size: 1.15rem; line-height: 1.45; min-height: 3em; }
+.sx-story-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sx-story-nav .sx-next { margin-left: auto; }
+.sx-dots { display: flex; gap: 5px; flex-wrap: wrap; }
+.sx-dot { width: 9px; height: 9px; border-radius: 50%; background: #e2d5a8; }
+.sx-dot.done { background: #f4a261; }
+.sx-dot.on { background: var(--accent); transform: scale(1.3); }
+
+.sx-inputs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sx-inputs input {
+  width: 74px;
+  font-size: 1.5rem;
+  font-family: inherit;
+  text-align: center;
+  padding: 4px;
+  border: 3px solid #cfd8ff;
+  border-radius: 12px;
+  color: var(--ink);
+}
+.sx-inputs input:focus { outline: none; border-color: var(--accent); }
+.sx-times { font-size: 1.6rem; font-weight: bold; color: var(--muted); }
+.sx-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-left: 6px; }
+.sx-preset { background: #fff; }
+.sx-help { margin: 8px 0; color: var(--muted); font-size: 0.95rem; }
+.sx-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.sx-tools button { background: #fff; }
+.sx-watch { background: var(--accent) !important; color: #fff; }
+
+/* The rectangle with a ruler on the top and left. */
+.sx-board {
+  --cell: 20px;
+  display: grid;
+  grid-template-columns: 34px max-content;
+  grid-template-rows: 34px max-content;
+  justify-content: center;
+  gap: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sx-corner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: var(--muted);
+}
+
+.sx-ruler { position: relative; touch-action: none; }
+.sx-ruler-a { height: 34px; }
+.sx-ruler-b { width: 34px; }
+.sx-board.explore .sx-ruler { cursor: copy; }
+
+.sx-seg {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background-color: #eef1ff;
+  transition: left 0.5s ease, top 0.5s ease, width 0.5s ease, height 0.5s ease;
+}
+
+.sx-ruler-a .sx-seg {
+  top: 0;
+  bottom: 0;
+  background-image: linear-gradient(to right, #b8c0e6 1px, transparent 1px);
+  background-size: var(--cell) 9px;
+  background-repeat: repeat-x;
+  background-position: left bottom;
+}
+
+.sx-ruler-b .sx-seg {
+  left: 0;
+  right: 0;
+  background-image: linear-gradient(to bottom, #b8c0e6 1px, transparent 1px);
+  background-size: 9px var(--cell);
+  background-repeat: repeat-y;
+  background-position: right top;
+}
+
+.sx-seg-num { font-weight: bold; font-size: 0.95rem; background: #eef1ff; padding: 0 3px; border-radius: 4px; }
+
+.sx-handle {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  font-size: 0.95rem;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(43, 45, 66, 0.2);
+  touch-action: none;
+  cursor: grab;
+  z-index: 2;
+  transition: left 0.5s ease, top 0.5s ease;
+  animation: pop-in 0.3s ease-out;
+}
+
+.sx-ruler-a .sx-handle { top: 2px; margin-left: -15px; }
+.sx-ruler-b .sx-handle { left: 2px; margin-top: -15px; }
+.sx-board:not(.explore) .sx-handle { cursor: default; }
+
+.sx-stage {
+  position: relative;
+  transition: width 0.5s ease, height 0.5s ease;
+  border-radius: 6px;
+}
+
+.sx-block {
+  position: absolute;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image:
+    linear-gradient(to right, rgba(43, 45, 66, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(43, 45, 66, 0.16) 1px, transparent 1px);
+  background-size: var(--cell) var(--cell);
+  box-shadow: inset 0 0 0 2px rgba(43, 45, 66, 0.25);
+  transition: left 0.5s ease, top 0.5s ease, width 0.5s ease, height 0.5s ease, opacity 0.3s ease, transform 0.3s ease;
+}
+
+.sx-stage.tiny .sx-block { background-image: none; }
+.sx-block.dim { opacity: 0.35; }
+.sx-block.hl { transform: scale(1.03); box-shadow: inset 0 0 0 3px #2b2d42, 0 6px 16px rgba(43, 45, 66, 0.25); z-index: 1; }
+.sx-stage.summed .sx-block { box-shadow: inset 0 0 0 2px rgba(43, 45, 66, 0.25), 0 0 0 4px #5cc96b; }
+
+.sx-board.dragging .sx-block,
+.sx-board.dragging .sx-seg,
+.sx-board.dragging .sx-handle,
+.sx-board.dragging .sx-stage { transition: none; }
+
+.sx-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-weight: bold;
+  line-height: 1.15;
+  pointer-events: none;
+  animation: pop-in 0.3s ease-out;
+  white-space: nowrap;
+}
+
+.sx-label:empty { display: none; }
+.sx-prod { color: #2b2d42; }
+.sx-term { color: var(--muted); font-size: 0.85em; }
+
+/* The sum underneath. */
+.sx-eq { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; }
+.sx-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; }
+.sx-big { font-size: 1.5rem; font-weight: bold; }
+.sx-eqsign, .sx-plus { font-size: 1.3rem; font-weight: bold; color: var(--muted); }
+.sx-chip {
+  font-weight: bold;
+  font-size: 1.1rem;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: #eceef5;
+  box-shadow: inset 0 0 0 2px rgba(43, 45, 66, 0.15);
+}
+.sx-chip.pop { animation: pop-in 0.3s ease-out; }
+.sx-total {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #fff;
+  background: #3fa451;
+  padding: 2px 16px;
+  border-radius: 12px;
+}
+.sx-total.pop { animation: pop-in 0.4s ease-out; }
+
+@media (max-width: 480px) {
+  .sx-story-text { font-size: 1.02rem; }
+  .sx-presets { margin-left: 0; }
+  .sx-chip { font-size: 0.95rem; padding: 2px 7px; }
+  .sx-big { font-size: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-block, .sx-seg, .sx-handle, .sx-stage { transition: none; }
+}

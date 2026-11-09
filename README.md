@@ -8,6 +8,8 @@ A bubble-merging multiplication game. Enter a problem like `14 × 12`: you get 1
 - **Daily challenges:** the home page puts today's challenge at the top, with every earlier challenge listed below it. A challenge is marked **✓ Finished** once every level is beaten. Current challenges:
   - **Squares:** 1×1, 2×2 … up to 30×30.
   - **The Zero Train (× 10, 100 … 1,000,000):** numbers are trains with one car per digit. Players couple 0 cars onto the back of their number's train to see that multiplying by these numbers just adds zeros to the end.
+- **Learn (explainer animations):** short step-by-step animations the player can then play with. Current explainers:
+  - **Split it up!:** draws 16 × 17 as a rectangle of little squares and cuts it into (16 × 10) + (16 × 3) + (16 × 4), to show how a hard multiplication splits into easy ones you can do in your head. Afterwards, players can try their own numbers and cuts.
 - **Free play:** pick any multiplication (up to 40 bubbles). More than 10 bubbles are grouped into boxes of ten.
 - **Admin page:** sign in as `admin` / `admin` to see every player's challenges, progress, best times and recent games.
 
@@ -28,6 +30,13 @@ Drop a new `.json` file into [`challenges/`](challenges/). No restart is needed.
 ```bash
 npm run check
 ```
+
+## Add a new explainer
+
+1. Add an entry (id, emoji, title, description) to the list in [`public/explainers/index.js`](public/explainers/index.js).
+2. Create `public/explainers/<id>.js`. It calls `Explainers.define("<id>", (root) => { ... })`, draws itself into `root`, and returns a clean-up function. [`split-multiplication.js`](public/explainers/split-multiplication.js) is a complete example.
+
+The page only loads an explainer's file when someone opens it.
 
 ## Player data
 
