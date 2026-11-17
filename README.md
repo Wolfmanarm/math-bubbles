@@ -10,6 +10,8 @@ A bubble-merging multiplication game. Enter a problem like `14 × 12`: you get 1
   - **The Zero Train (× 10, 100 … 1,000,000):** numbers are trains with one car per digit. Players couple 0 cars onto the back of their number's train to see that multiplying by these numbers just adds zeros to the end.
 - **Learn (explainer animations):** short step-by-step animations the player can then play with. Current explainers:
   - **Split it up!:** draws 16 × 17 as a rectangle of little squares and cuts it into (16 × 10) + (16 × 3) + (16 × 4), to show how a hard multiplication splits into easy ones you can do in your head. Afterwards, players can try their own numbers and cuts.
+  - **Hop the number line:** Hopper the frog adds and subtracts positive and negative numbers on a sliding number line. + means face right and − means turn around; a positive number means walk forwards and a negative one means walk backwards (so 3 − (−4) = 7). Players can then use sliders, or practise by dragging a flag to where Hopper will land.
+  - **Count the zeros:** powers of ten drawn as a 1 and coloured 0 tiles. Multiplying adds the zeros (10² × 10³ = 10⁵), a power of a power repeats them ((10²)³ = 10⁶), and dividing cancels them (10⁵ ÷ 10² = 10³). It also shows that adding doesn't work this way (10² + 10² = 200). Players can then build their own, with up to four powers.
 - **Free play:** pick any multiplication (up to 40 bubbles). More than 10 bubbles are grouped into boxes of ten.
 - **Admin page:** sign in as `admin` / `admin` to see every player's challenges, progress, best times and recent games.
 

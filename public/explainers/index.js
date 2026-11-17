@@ -15,6 +15,18 @@ window.Explainers = {
       title: "Split it up!",
       description: "Cut a hard multiplication like 16 × 17 into easy pieces you can do in your head.",
     },
+    {
+      id: "number-line",
+      emoji: "🐸",
+      title: "Hop the number line",
+      description: "Slide along a number line to add and subtract positive and negative numbers, like 3 − (−4).",
+    },
+    {
+      id: "powers-of-ten",
+      emoji: "💯",
+      title: "Count the zeros",
+      description: "Why 10² × 10³ = 10⁵: multiply powers of ten by counting and adding their zeros.",
+    },
   ],
 
   modules: {},
